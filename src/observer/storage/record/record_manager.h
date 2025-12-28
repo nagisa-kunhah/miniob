@@ -356,6 +356,8 @@ private:
 
   // get the field length by `column id`, all columns are fixed length.
   int get_field_len(int col_id);
+
+  RC set_record_data(SlotNum slot_num, Record &record);
 };
 /**
  * @brief 管理整个文件中记录的增删改查
