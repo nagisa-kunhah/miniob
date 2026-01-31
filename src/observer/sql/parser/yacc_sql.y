@@ -371,7 +371,12 @@ attr_def:
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = 4;
+
+      if ($2 == (int)AttrType::TEXT) {
+        $$->length = 4096;  // TEXT 默认 65535 字节（使用 LOB 存储）
+      } else {
+        $$->length = 4;
+      }
     }
     ;
 number:

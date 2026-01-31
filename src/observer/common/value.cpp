@@ -136,6 +136,9 @@ void Value::set_data(char *data, int length)
       value_.bigint_value_ = *(int64_t*)data;
       length_            = length;
     }break;
+    case AttrType::TEXT: {
+      set_string(data, length);
+    } break;
     default: {
       LOG_WARN("unknown data type: %d", attr_type_);
     } break;
