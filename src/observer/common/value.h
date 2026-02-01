@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/memory.h"
 #include "common/type/attr_type.h"
 #include "common/type/data_type.h"
+#include "common/type/date_type.h"
 #include "common/type/string_t.h"
 
 /**
@@ -36,6 +37,8 @@ public:
   friend class BooleanType;
   friend class CharType;
   friend class VectorType;
+  friend class DateType;
+  friend class BigIntType;
 
   Value() = default;
 
@@ -92,6 +95,7 @@ public:
   void set_data(const char *data, int length) { this->set_data(const_cast<char *>(data), length); }
   void set_value(const Value &value);
   void set_boolean(bool val);
+  void set_bigint(int64_t val);
 
   string to_string() const;
 
@@ -112,6 +116,8 @@ public:
   string   get_string() const;
   string_t get_string_t() const;
   bool     get_boolean() const;
+  uint32_t get_date() const;
+  int64_t  get_bigint() const;
 
 public:
   void set_int(int val);
@@ -127,6 +133,8 @@ private:
   union Val
   {
     int32_t int_value_;
+    uint32_t date_value_;
+    int64_t bigint_value_;
     float   float_value_;
     bool    bool_value_;
     char   *pointer_value_;

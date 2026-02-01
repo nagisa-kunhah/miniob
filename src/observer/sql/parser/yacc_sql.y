@@ -88,6 +88,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         INT_T
         STRING_T
         FLOAT_T
+        TEXT
         VECTOR_T
         HELP
         EXIT
@@ -370,7 +371,12 @@ attr_def:
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = 4;
+
+      if ($2 == (int)AttrType::TEXT) {
+        $$->length = 4096;  // TEXT 默认 65535 字节（使用 LOB 存储）
+      } else {
+        $$->length = 4;
+      }
     }
     ;
 number:
@@ -381,6 +387,7 @@ type:
     | STRING_T { $$ = static_cast<int>(AttrType::CHARS); }
     | FLOAT_T  { $$ = static_cast<int>(AttrType::FLOATS); }
     | VECTOR_T { $$ = static_cast<int>(AttrType::VECTORS); }
+    | TEXT     { $$ = static_cast<int>(AttrType::TEXT); }
     ;
 primary_key:
     /* empty */

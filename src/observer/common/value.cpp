@@ -128,6 +128,17 @@ void Value::set_data(char *data, int length)
       value_.bool_value_ = *(int *)data != 0;
       length_            = length;
     } break;
+    case AttrType::DATE: {
+      value_.date_value_ = *(uint32_t*)data;
+      length_            = length;
+    }break;
+    case AttrType::BIGINT: {
+      value_.bigint_value_ = *(int64_t*)data;
+      length_            = length;
+    }break;
+    case AttrType::TEXT: {
+      set_string(data, length);
+    } break;
     default: {
       LOG_WARN("unknown data type: %d", attr_type_);
     } break;
@@ -348,4 +359,27 @@ bool Value::get_boolean() const
     }
   }
   return false;
+}
+
+uint32_t Value::get_date() const {
+  ASSERT(attr_type_ == AttrType::DATE, "attr type is not DATE");
+  return value_.date_value_;
+}
+
+int64_t Value::get_bigint() const {
+  if (AttrType::INTS == attr_type_) {
+    return value_.bigint_value_;
+  } else if (AttrType::BIGINT == attr_type_) {
+    return value_.int_value_;
+  } else {
+    LOG_WARN("unknown data type. type=%d", attr_type_);
+  }
+  return 0;
+}
+
+void Value::set_bigint(int64_t val) {
+  reset();
+  attr_type_ = AttrType::BIGINT;
+  value_.bigint_value_ = val;
+  length_ = sizeof(val);
 }
