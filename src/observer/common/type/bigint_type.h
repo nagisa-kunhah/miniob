@@ -5,8 +5,8 @@
 class BigIntType : public DataType
 {
 public:
-    BigIntType() : DataType(AttrType::BIGINT){}
-    virtual ~BigIntType() {}
+  BigIntType() : DataType(AttrType::BIGINT) {}
+  virtual ~BigIntType() {}
 
   int compare(const Value &left, const Value &right) const override;
   // int compare(const Column &left, const Column &right, int left_idx, int right_idx) const override;

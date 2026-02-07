@@ -16,12 +16,10 @@ See the Mulan PSL v2 for more details. */
 using namespace std;
 using namespace common;
 
-GroupByVecPhysicalOperator::GroupByVecPhysicalOperator(vector<unique_ptr<Expression>> &&group_by_exprs, 
-    vector<Expression *> &&expressions):
-    GroupByPhysicalOperator(std::move(expressions)),
-    group_by_exprs_(std::move(group_by_exprs))
-{
-}
+GroupByVecPhysicalOperator::GroupByVecPhysicalOperator(
+    vector<unique_ptr<Expression>> &&group_by_exprs, vector<Expression *> &&expressions)
+    : GroupByPhysicalOperator(std::move(expressions)), group_by_exprs_(std::move(group_by_exprs))
+{}
 
 RC GroupByVecPhysicalOperator::open(Trx *trx)
 {
@@ -31,7 +29,7 @@ RC GroupByVecPhysicalOperator::open(Trx *trx)
   }
 
   PhysicalOperator *child = children_[0].get();
-  RC rc = child->open(trx);
+  RC                rc    = child->open(trx);
   if (OB_FAIL(rc)) {
     LOG_INFO("fail to open child operator. rc = %s", strrc(rc));
     return rc;
@@ -40,15 +38,15 @@ RC GroupByVecPhysicalOperator::open(Trx *trx)
   aggregate_hash_table_ = make_unique<StandardAggregateHashTable>(aggregate_expressions_);
 
   output_chunk_.reset();
-  
+
   int col_id = 0;
   for (const auto &expr : group_by_exprs_) {
     output_chunk_.add_column(make_unique<Column>(expr->value_type(), expr->value_length()), col_id++);
   }
-  
+
   for (Expression *expr : aggregate_expressions_) {
-    auto *aggregate_expr = static_cast<AggregateExpr *>(expr);
-    Expression *child_expr = aggregate_expr->child().get();
+    auto       *aggregate_expr = static_cast<AggregateExpr *>(expr);
+    Expression *child_expr     = aggregate_expr->child().get();
     output_chunk_.add_column(make_unique<Column>(child_expr->value_type(), child_expr->value_length()), col_id++);
   }
 
@@ -62,8 +60,8 @@ RC GroupByVecPhysicalOperator::open(Trx *trx)
 
   col_id = 0;
   for (Expression *expr : aggregate_expressions_) {
-    auto *aggregate_expr = static_cast<AggregateExpr *>(expr);
-    Expression *child_expr = aggregate_expr->child().get();
+    auto       *aggregate_expr = static_cast<AggregateExpr *>(expr);
+    Expression *child_expr     = aggregate_expr->child().get();
     aggrs_chunk.add_column(make_unique<Column>(child_expr->value_type(), child_expr->value_length()), col_id++);
   }
 
@@ -77,8 +75,8 @@ RC GroupByVecPhysicalOperator::open(Trx *trx)
     // 计算 GROUP BY 表达式
     groups_chunk.reset_data();
     for (size_t i = 0; i < group_by_exprs_.size(); i++) {
-      Expression *expr = group_by_exprs_[i].get();
-      RC get_rc = expr->get_column(child_chunk, groups_chunk.column(i));
+      Expression *expr   = group_by_exprs_[i].get();
+      RC          get_rc = expr->get_column(child_chunk, groups_chunk.column(i));
       if (OB_FAIL(get_rc)) {
         LOG_WARN("failed to get column for group by expression %d. rc=%s", i, strrc(get_rc));
         return get_rc;
@@ -87,9 +85,9 @@ RC GroupByVecPhysicalOperator::open(Trx *trx)
 
     aggrs_chunk.reset_data();
     for (size_t i = 0; i < aggregate_expressions_.size(); i++) {
-      auto *aggregate_expr = static_cast<AggregateExpr *>(aggregate_expressions_[i]);
-      Expression *child_expr = aggregate_expr->child().get();
-      RC get_rc = child_expr->get_column(child_chunk, aggrs_chunk.column(i));
+      auto       *aggregate_expr = static_cast<AggregateExpr *>(aggregate_expressions_[i]);
+      Expression *child_expr     = aggregate_expr->child().get();
+      RC          get_rc         = child_expr->get_column(child_chunk, aggrs_chunk.column(i));
       if (OB_FAIL(get_rc)) {
         LOG_WARN("failed to get column for aggregate expression %d. rc=%s", i, strrc(get_rc));
         return get_rc;
@@ -149,10 +147,10 @@ RC GroupByVecPhysicalOperator::close()
   if (!children_.empty()) {
     children_[0]->close();
   }
-  
+
   hash_table_scanner_.reset();
   aggregate_hash_table_.reset();
-  
+
   LOG_INFO("close group by operator");
   return RC::SUCCESS;
 }

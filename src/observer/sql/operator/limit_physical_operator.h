@@ -38,6 +38,6 @@ public:
   RC     tuple_schema(TupleSchema &schema) const override;
 
 private:
-  int limit_;      ///< 限制的行数，-1 表示没有限制
-  int returned_;   ///< 已经返回的行数
+  int limit_;     ///< 限制的行数，-1 表示没有限制
+  int returned_;  ///< 已经返回的行数
 };

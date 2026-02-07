@@ -16,8 +16,7 @@ See the Mulan PSL v2 for more details. */
 int TextType::compare(const Value &left, const Value &right) const
 {
   ASSERT(left.attr_type() == AttrType::TEXT && right.attr_type() == AttrType::TEXT, "invalid type");
-  return common::compare_string(
-      (void *)left.data(), left.length(), (void *)right.data(), right.length());
+  return common::compare_string((void *)left.data(), left.length(), (void *)right.data(), right.length());
 }
 
 RC TextType::set_value_from_str(Value &val, const string &data) const
@@ -39,7 +38,7 @@ int TextType::cast_cost(AttrType type)
   if (type == AttrType::TEXT) {
     return 0;
   }
-  
+
   return INT32_MAX;
 }
 

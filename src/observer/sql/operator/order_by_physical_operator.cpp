@@ -46,7 +46,7 @@ RC OrderByPhysicalOperator::open(Trx *trx)
       break;
     }
 
-    auto row  = make_unique<OrderByRow>();
+    auto row   = make_unique<OrderByRow>();
     row->tuple = make_unique<ValueListTuple>();
     rc         = ValueListTuple::make(*tuple, *row->tuple);
     if (rc != RC::SUCCESS) {
@@ -81,14 +81,14 @@ RC OrderByPhysicalOperator::open(Trx *trx)
   sort(materialized_rows_.begin(),
       materialized_rows_.end(),
       [this](const unique_ptr<OrderByRow> &left_row, const unique_ptr<OrderByRow> &right_row) {
-    int result = 0;
-    RC  rc     = this->compare_order_by_values(*left_row, *right_row, result);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to compare tuples. rc=%s", strrc(rc));
-      return false;
-    }
-    return result < 0;
-  });
+        int result = 0;
+        RC  rc     = this->compare_order_by_values(*left_row, *right_row, result);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("failed to compare tuples. rc=%s", strrc(rc));
+          return false;
+        }
+        return result < 0;
+      });
 
   current_index_ = 0;
   return RC::SUCCESS;
@@ -129,7 +129,8 @@ RC OrderByPhysicalOperator::tuple_schema(TupleSchema &schema) const
   return children_[0]->tuple_schema(schema);
 }
 
-RC OrderByPhysicalOperator::compare_order_by_values(const OrderByRow &left_row, const OrderByRow &right_row, int &result) const
+RC OrderByPhysicalOperator::compare_order_by_values(
+    const OrderByRow &left_row, const OrderByRow &right_row, int &result) const
 {
   const vector<Value> &left_values  = left_row.order_by_values;
   const vector<Value> &right_values = right_row.order_by_values;
@@ -138,7 +139,7 @@ RC OrderByPhysicalOperator::compare_order_by_values(const OrderByRow &left_row, 
   }
 
   for (size_t i = 0; i < order_by_expressions_.size(); i++) {
-    const OrderByNode &order_by  = order_by_expressions_[i];
+    const OrderByNode &order_by   = order_by_expressions_[i];
     int                cmp_result = left_values[i].compare(right_values[i]);
     if (cmp_result != 0) {
       result = order_by.is_desc ? -cmp_result : cmp_result;

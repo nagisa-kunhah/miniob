@@ -63,8 +63,8 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
 
   // collect query fields in `select` statement
   vector<unique_ptr<Expression>> bound_expressions;
-  ExpressionBinder expression_binder(binder_context);
-  
+  ExpressionBinder               expression_binder(binder_context);
+
   for (unique_ptr<Expression> &expression : select_sql.expressions) {
     RC rc = expression_binder.bind_expression(expression, bound_expressions);
     if (OB_FAIL(rc)) {
@@ -112,22 +112,22 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   vector<unique_ptr<Expression>> order_by_expressions;
   for (const OrderByNode &item : select_sql.order_by) {
     vector<unique_ptr<Expression>> item_expressions;
-    unique_ptr<Expression> order_by_expr = item.expr->copy();
-    RC rc = expression_binder.bind_expression(order_by_expr, item_expressions);
+    unique_ptr<Expression>         order_by_expr = item.expr->copy();
+    RC                             rc            = expression_binder.bind_expression(order_by_expr, item_expressions);
     if (OB_FAIL(rc)) {
       LOG_WARN("bind order by expression failed. rc=%s", strrc(rc));
       delete select_stmt;
       return rc;
     }
     OrderByNode new_node;
-    new_node.expr = std::move(item_expressions.back());
+    new_node.expr    = std::move(item_expressions.back());
     new_node.is_desc = item.is_desc;
     select_stmt->order_by_.push_back(std::move(new_node));
   }
 
   // Parse LIMIT
   select_stmt->limit_ = select_sql.limit;
-  
+
   stmt = select_stmt;
   return RC::SUCCESS;
 }

@@ -17,7 +17,4 @@ See the Mulan PSL v2 for more details. */
 
 using namespace std;
 
-LimitLogicalOperator::LimitLogicalOperator(int limit)
-{
-  limit_ = limit;
-}
+LimitLogicalOperator::LimitLogicalOperator(int limit) { limit_ = limit; }

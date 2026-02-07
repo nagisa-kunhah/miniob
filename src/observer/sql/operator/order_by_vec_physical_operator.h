@@ -44,7 +44,7 @@ private:
   RC compare_row(const MaterializedRow &left_row, const MaterializedRow &right_row, int &result) const;
 
 private:
-  vector<OrderByNode>               order_by_expressions_;
+  vector<OrderByNode>                 order_by_expressions_;
   vector<unique_ptr<MaterializedRow>> materialized_rows_;
   vector<pair<AttrType, int>>         output_column_types_;
   vector<int>                         output_column_ids_;
@@ -52,4 +52,3 @@ private:
   Chunk                               child_chunk_;
   Chunk                               output_chunk_;
 };
-

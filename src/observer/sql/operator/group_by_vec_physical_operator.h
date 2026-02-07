@@ -35,8 +35,8 @@ public:
   RC close() override;
 
 private:
-  vector<unique_ptr<Expression>> group_by_exprs_;
-  unique_ptr<AggregateHashTable> aggregate_hash_table_;
+  vector<unique_ptr<Expression>>          group_by_exprs_;
+  unique_ptr<AggregateHashTable>          aggregate_hash_table_;
   unique_ptr<AggregateHashTable::Scanner> hash_table_scanner_;
-  Chunk output_chunk_;
+  Chunk                                   output_chunk_;
 };

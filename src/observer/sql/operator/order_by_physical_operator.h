@@ -52,7 +52,7 @@ private:
   RC compare_order_by_values(const OrderByRow &left_row, const OrderByRow &right_row, int &result) const;
 
 private:
-  vector<OrderByNode> order_by_expressions_;  ///< 排序表达式列表
-  vector<unique_ptr<OrderByRow>> materialized_rows_;       ///< 物化并排序后的行
-  size_t                          current_index_;          ///< 当前返回的元组索引
+  vector<OrderByNode>            order_by_expressions_;  ///< 排序表达式列表
+  vector<unique_ptr<OrderByRow>> materialized_rows_;     ///< 物化并排序后的行
+  size_t                         current_index_;         ///< 当前返回的元组索引
 };

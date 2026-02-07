@@ -141,10 +141,11 @@ RC OrderByVecPhysicalOperator::tuple_schema(TupleSchema &schema) const
   return children_[0]->tuple_schema(schema);
 }
 
-RC OrderByVecPhysicalOperator::compare_row(const MaterializedRow &left_row, const MaterializedRow &right_row, int &result) const
+RC OrderByVecPhysicalOperator::compare_row(
+    const MaterializedRow &left_row, const MaterializedRow &right_row, int &result) const
 {
-  if (left_row.order_by_values.size() != order_by_expressions_.size()
-      || right_row.order_by_values.size() != order_by_expressions_.size()) {
+  if (left_row.order_by_values.size() != order_by_expressions_.size() ||
+      right_row.order_by_values.size() != order_by_expressions_.size()) {
     return RC::INTERNAL;
   }
 
@@ -159,4 +160,3 @@ RC OrderByVecPhysicalOperator::compare_row(const MaterializedRow &left_row, cons
   result = 0;
   return RC::SUCCESS;
 }
-

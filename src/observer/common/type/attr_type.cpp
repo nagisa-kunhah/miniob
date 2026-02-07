@@ -8,11 +8,11 @@ EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
-
 #include "common/lang/string.h"
 #include "common/type/attr_type.h"
 
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "vectors", "booleans","date","bigint","text"};
+const char *ATTR_TYPE_NAME[] = {
+    "undefined", "chars", "ints", "floats", "vectors", "booleans", "date", "bigint", "text"};
 
 const char *attr_type_to_string(AttrType type)
 {
@@ -32,12 +32,6 @@ AttrType attr_type_from_string(const char *s)
   return AttrType::UNDEFINED;
 }
 
-bool is_numerical_type(AttrType type)
-{
-  return (type == AttrType::INTS || type == AttrType::FLOATS);
-}
+bool is_numerical_type(AttrType type) { return (type == AttrType::INTS || type == AttrType::FLOATS); }
 
-bool is_string_type(AttrType type)
-{
-  return (type == AttrType::CHARS);
-}
+bool is_string_type(AttrType type) { return (type == AttrType::CHARS); }

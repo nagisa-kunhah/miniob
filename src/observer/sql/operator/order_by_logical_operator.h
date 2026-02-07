@@ -32,7 +32,7 @@ public:
   LogicalOperatorType type() const override { return LogicalOperatorType::ORDER_BY; }
   OpType              get_op_type() const override { return OpType::LOGICALORDERBY; }
 
-  auto &order_by_expressions() { return order_by_expressions_; }
+  auto       &order_by_expressions() { return order_by_expressions_; }
   const auto &order_by_expressions() const { return order_by_expressions_; }
 
 private:

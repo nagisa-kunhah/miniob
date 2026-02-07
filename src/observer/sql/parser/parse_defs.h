@@ -95,8 +95,8 @@ struct ConditionSqlNode
  */
 struct OrderByNode
 {
-  unique_ptr<Expression> expr;    ///< 排序表达式（可以是列名、表达式等）
-  bool is_desc;                  ///< 是否降序（true=DESC, false=ASC）
+  unique_ptr<Expression> expr;     ///< 排序表达式（可以是列名、表达式等）
+  bool                   is_desc;  ///< 是否降序（true=DESC, false=ASC）
 };
 
 struct SelectSqlNode
@@ -105,8 +105,8 @@ struct SelectSqlNode
   vector<string>                 relations;    ///< 查询的表
   vector<ConditionSqlNode>       conditions;   ///< 查询条件，使用AND串联起来多个条件
   vector<unique_ptr<Expression>> group_by;     ///< group by clause
-  vector<OrderByNode>           order_by;     ///< order by clause（包含排序方向）
-  int limit;                                  ///< limit clause
+  vector<OrderByNode>            order_by;     ///< order by clause（包含排序方向）
+  int                            limit;        ///< limit clause
 };
 
 /**
