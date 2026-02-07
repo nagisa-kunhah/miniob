@@ -45,13 +45,13 @@ TEST_P(PaxRecordFileScannerWithParam, test_file_iterator)
   const char *record_manager_file = "record_manager.bp";
   filesystem::remove(record_manager_file);
 
-  BufferPoolManager *bpm = new BufferPoolManager();
-  ASSERT_EQ(RC::SUCCESS, bpm->init(make_unique<VacuousDoubleWriteBuffer>()));
+  BufferPoolManager bpm;
+  ASSERT_EQ(RC::SUCCESS, bpm.init(make_unique<VacuousDoubleWriteBuffer>()));
   DiskBufferPool *bp = nullptr;
-  RC              rc = bpm->create_file(record_manager_file);
+  RC              rc = bpm.create_file(record_manager_file);
   ASSERT_EQ(rc, RC::SUCCESS);
 
-  rc = bpm->open_file(log_handler, record_manager_file, bp);
+  rc = bpm.open_file(log_handler, record_manager_file, bp);
   ASSERT_EQ(rc, RC::SUCCESS);
 
   TableMeta table_meta;
@@ -179,8 +179,7 @@ TEST_P(PaxRecordFileScannerWithParam, test_file_iterator)
   ASSERT_EQ(rc, RC::RECORD_EOF);
   ASSERT_EQ(count, rids.size() / 2);
 
-  bpm->close_file(record_manager_file);
-  delete bpm;
+  ASSERT_EQ(RC::SUCCESS, bpm.close_file(record_manager_file));
 }
 
 class PaxPageHandlerTestWithParam : public testing::TestWithParam<int>
@@ -194,13 +193,13 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
   const char *record_manager_file = "record_manager.bp";
   ::remove(record_manager_file);
 
-  BufferPoolManager *bpm = new BufferPoolManager();
-  ASSERT_EQ(RC::SUCCESS, bpm->init(make_unique<VacuousDoubleWriteBuffer>()));
+  BufferPoolManager bpm;
+  ASSERT_EQ(RC::SUCCESS, bpm.init(make_unique<VacuousDoubleWriteBuffer>()));
   DiskBufferPool *bp = nullptr;
-  RC              rc = bpm->create_file(record_manager_file);
+  RC              rc = bpm.create_file(record_manager_file);
   ASSERT_EQ(rc, RC::SUCCESS);
 
-  rc = bpm->open_file(log_handler, record_manager_file, bp);
+  rc = bpm.open_file(log_handler, record_manager_file, bp);
   ASSERT_EQ(rc, RC::SUCCESS);
 
   Frame *frame = nullptr;
@@ -208,7 +207,7 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
   ASSERT_EQ(rc, RC::SUCCESS);
 
   const int          record_size        = 19;  // 4 + 4 + 4 + 7
-  RecordPageHandler *record_page_handle = new PaxRecordPageHandler();
+  unique_ptr<RecordPageHandler> record_page_handle = make_unique<PaxRecordPageHandler>();
   TableMeta          table_meta;
   table_meta.fields_.resize(4);
   table_meta.fields_[0].attr_type_ = AttrType::INTS;
@@ -228,7 +227,7 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
   ASSERT_EQ(rc, RC::SUCCESS);
 
   RecordPageIterator iterator;
-  iterator.init(record_page_handle);
+  iterator.init(record_page_handle.get());
 
   int    count = 0;
   Record record;
@@ -254,7 +253,7 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
   }
 
   count = 0;
-  iterator.init(record_page_handle);
+  iterator.init(record_page_handle.get());
   while (iterator.has_next()) {
     int   int_val   = count + int_base;
     float float_val = count + float_base;
@@ -346,9 +345,7 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
 
   rc = record_page_handle->cleanup();
   ASSERT_EQ(rc, RC::SUCCESS);
-  delete record_page_handle;
-  bpm->close_file(record_manager_file);
-  delete bpm;
+  ASSERT_EQ(RC::SUCCESS, bpm.close_file(record_manager_file));
 }
 
 INSTANTIATE_TEST_SUITE_P(
