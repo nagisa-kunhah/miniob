@@ -9,13 +9,13 @@
 
 int DateType::compare(const Value &left, const Value &right) const
 {
-    uint32_t left_val = left.get_date();
-    uint32_t right_value = right.get_date();
-    if (left_val<right_value) {
-        return -1;
-    }
-    if (left_val>right_value) {
-        return 1;
-    }
-    return 0;
+  uint32_t left_val    = left.get_date();
+  uint32_t right_value = right.get_date();
+  if (left_val < right_value) {
+    return -1;
+  }
+  if (left_val > right_value) {
+    return 1;
+  }
+  return 0;
 }

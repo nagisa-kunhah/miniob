@@ -1,6 +1,6 @@
 /* Copyright (c) 2021 OceanBase and/or its affiliates. All rights reserved.
 miniob is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
+You can use this software according to terms and conditions of Mulan PSL v2.
 You may obtain a copy of Mulan PSL v2 at:
          http://license.coscl.org.cn/MulanPSL2
 THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
@@ -63,8 +63,8 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
 
   // collect query fields in `select` statement
   vector<unique_ptr<Expression>> bound_expressions;
-  ExpressionBinder expression_binder(binder_context);
-  
+  ExpressionBinder               expression_binder(binder_context);
+
   for (unique_ptr<Expression> &expression : select_sql.expressions) {
     RC rc = expression_binder.bind_expression(expression, bound_expressions);
     if (OB_FAIL(rc)) {
@@ -107,6 +107,27 @@ RC SelectStmt::create(Db *db, SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->query_expressions_.swap(bound_expressions);
   select_stmt->filter_stmt_ = filter_stmt;
   select_stmt->group_by_.swap(group_by_expressions);
-  stmt                      = select_stmt;
+
+  // Parse ORDER BY
+  vector<unique_ptr<Expression>> order_by_expressions;
+  for (const OrderByNode &item : select_sql.order_by) {
+    vector<unique_ptr<Expression>> item_expressions;
+    unique_ptr<Expression>         order_by_expr = item.expr->copy();
+    RC                             rc            = expression_binder.bind_expression(order_by_expr, item_expressions);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("bind order by expression failed. rc=%s", strrc(rc));
+      delete select_stmt;
+      return rc;
+    }
+    OrderByNode new_node;
+    new_node.expr    = std::move(item_expressions.back());
+    new_node.is_desc = item.is_desc;
+    select_stmt->order_by_.push_back(std::move(new_node));
+  }
+
+  // Parse LIMIT
+  select_stmt->limit_ = select_sql.limit;
+
+  stmt = select_stmt;
   return RC::SUCCESS;
 }

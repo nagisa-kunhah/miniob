@@ -25,7 +25,7 @@ enum class AttrType
   DATE,
   BIGINT,
   TEXT,
-  MAXTYPE,   ///< 请在 UNDEFINED 与 MAXTYPE 之间增加新类型
+  MAXTYPE,  ///< 请在 UNDEFINED 与 MAXTYPE 之间增加新类型
 };
 
 const char *attr_type_to_string(AttrType type);

@@ -132,12 +132,12 @@ private:
 
   union Val
   {
-    int32_t int_value_;
+    int32_t  int_value_;
     uint32_t date_value_;
-    int64_t bigint_value_;
-    float   float_value_;
-    bool    bool_value_;
-    char   *pointer_value_;
+    int64_t  bigint_value_;
+    float    float_value_;
+    bool     bool_value_;
+    char    *pointer_value_;
   } value_ = {.int_value_ = 0};
 
   /// 是否申请并占有内存, 目前对于 CHARS 类型 own_data_ 为true, 其余类型 own_data_ 为false
