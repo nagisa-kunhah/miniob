@@ -95,7 +95,8 @@ TEST_P(PaxRecordFileScannerWithParam, test_file_iterator)
   Chunk     chunk;
   FieldMeta fm;
   fm.init("col1", AttrType::INTS, 0, 4, true, 0);
-  auto col1 = std::make_unique<Column>(fm, 2048);
+  const int chunk_capacity = record_insert_num > 2048 ? record_insert_num : 2048;
+  auto      col1           = std::make_unique<Column>(fm, chunk_capacity);
   chunk.add_column(std::move(col1), 0);
   count = 0;
   while (OB_SUCC(rc = chunk_scanner.next_chunk(chunk))) {
