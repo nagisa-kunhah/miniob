@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "event/sql_event.h"
 #include "sql/executor/analyze_table_executor.h"
 #include "sql/executor/create_index_executor.h"
+#include "sql/executor/create_materialized_view_executor.h"
 #include "sql/executor/create_table_executor.h"
 #include "sql/executor/desc_table_executor.h"
 #include "sql/executor/help_executor.h"
@@ -40,6 +41,11 @@ RC CommandExecutor::execute(SQLStageEvent *sql_event)
 
     case StmtType::CREATE_TABLE: {
       CreateTableExecutor executor;
+      rc = executor.execute(sql_event);
+    } break;
+
+    case StmtType::CREATE_MATERIALIZED_VIEW: {
+      CreateMaterializedViewExecutor executor;
       rc = executor.execute(sql_event);
     } break;
 
