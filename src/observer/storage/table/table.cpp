@@ -97,6 +97,7 @@ RC Table::create(Db *db, int32_t table_id, const char *path, const char *name, c
   fs.close();
 
   db_       = db;
+  meta_file_path_ = path;
 
   string             data_file = table_data_file(base_dir, name);
   BufferPoolManager &bpm       = db->buffer_pool_manager();
@@ -143,6 +144,7 @@ RC Table::open(Db *db, const char *meta_file, const char *base_dir)
   fs.close();
 
   db_       = db;
+  meta_file_path_.swap(meta_file_path);
 
   // // 加载数据文件
   // RC rc = init_record_handler(base_dir);
@@ -170,6 +172,39 @@ RC Table::open(Db *db, const char *meta_file, const char *base_dir)
   }
 
   return rc;
+}
+
+RC Table::set_field_display_names(span<const string> display_names)
+{
+  const int sys_field_num   = table_meta_.sys_field_num();
+  const int visible_fields  = table_meta_.field_num() - sys_field_num;
+  if (static_cast<int>(display_names.size()) != visible_fields) {
+    LOG_WARN("invalid display names size. expect=%d, got=%d, table=%s",
+        visible_fields,
+        static_cast<int>(display_names.size()),
+        table_meta_.name());
+    return RC::INVALID_ARGUMENT;
+  }
+
+  for (int i = 0; i < visible_fields; i++) {
+    FieldMeta *field = const_cast<FieldMeta *>(table_meta_.field(i + sys_field_num));
+    field->set_display_name(display_names[i]);
+  }
+
+  if (meta_file_path_.empty()) {
+    LOG_WARN("meta file path is empty. table=%s", table_meta_.name());
+    return RC::INTERNAL;
+  }
+
+  fstream fs;
+  fs.open(meta_file_path_, ios_base::out | ios_base::binary | ios_base::trunc);
+  if (!fs.is_open()) {
+    LOG_ERROR("Failed to open meta file for write. file name=%s, errmsg=%s", meta_file_path_.c_str(), strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+  table_meta_.serialize(fs);
+  fs.close();
+  return RC::SUCCESS;
 }
 
 RC Table::insert_record(Record &record)

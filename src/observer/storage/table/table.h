@@ -121,6 +121,13 @@ public:
 
   RC sync();
 
+public:
+  /**
+   * @brief Set output/display names for visible fields (non-sys fields)
+   * @details Only affects the column header when expanded by `*`.
+   */
+  RC set_field_display_names(span<const string> display_names);
+
 private:
   RC set_value_to_record(char *record_data, const Value &value, const FieldMeta *field);
 
@@ -134,6 +141,7 @@ public:
 private:
   Db       *db_ = nullptr;
   TableMeta table_meta_;
+  string    meta_file_path_;
   // DiskBufferPool    *data_buffer_pool_ = nullptr;  /// 数据文件关联的buffer pool
   // RecordFileHandler *record_handler_   = nullptr;  /// 记录操作
   // vector<Index *>    indexes_;

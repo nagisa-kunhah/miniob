@@ -16,6 +16,8 @@ See the Mulan PSL v2 for more details. */
 
 #include <cctype>
 
+#include "common/lang/span.h"
+#include "common/lang/string.h"
 #include "common/lang/unordered_map.h"
 #include "common/log/log.h"
 #include "event/session_event.h"
@@ -57,6 +59,14 @@ static string sanitize_column_name(const char *raw, int index)
     sanitized = "c_" + sanitized;
   }
   return sanitized;
+}
+
+static string normalize_display_name(const char *raw, int index)
+{
+  if (raw != nullptr && !common::is_blank(raw)) {
+    return string(raw);
+  }
+  return "c" + std::to_string(index);
 }
 
 static int default_length_for_type(AttrType type)
@@ -122,6 +132,8 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
   vector<AttrInfoSqlNode> attr_infos;
   attr_infos.reserve(query_expressions.size());
   unordered_map<string, int> used_names;
+  vector<string> display_names;
+  display_names.reserve(query_expressions.size());
 
   for (size_t i = 0; i < query_expressions.size(); i++) {
     Expression *expr = query_expressions[i].get();
@@ -130,6 +142,8 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
     if (len <= 0) {
       len = default_length_for_type(type);
     }
+
+    display_names.emplace_back(normalize_display_name(expr->name(), static_cast<int>(i + 1)));
 
     string col_name = sanitize_column_name(expr->name(), static_cast<int>(i + 1));
     auto   iter     = used_names.find(col_name);
@@ -160,6 +174,12 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
   Table *mv_table = db->find_table(view_name.c_str());
   if (mv_table == nullptr) {
     return RC::INTERNAL;
+  }
+
+  rc = mv_table->set_field_display_names(
+      span<const string>(display_names.data(), display_names.size()));
+  if (OB_FAIL(rc)) {
+    return rc;
   }
 
   // 4) Build physical plan for select and insert results into MV table
