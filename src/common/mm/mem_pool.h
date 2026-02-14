@@ -305,8 +305,11 @@ string MemPoolSimple<T>::to_string()
 {
   stringstream ss;
 
-  ss << "name:" << this->name << "," << "dyanmic:" << this->dynamic << "," << "size:" << this->size << ","
-     << "pool_size:" << this->pools.size() << "," << "used_size:" << this->used.size() << ","
+  ss << "name:" << this->name << ","
+     << "dyanmic:" << this->dynamic << ","
+     << "size:" << this->size << ","
+     << "pool_size:" << this->pools.size() << ","
+     << "used_size:" << this->used.size() << ","
      << "free_size:" << this->frees.size();
   return ss.str();
 }
@@ -384,8 +387,11 @@ public:
 
     stringstream ss;
 
-    ss << "name:" << this->name << "," << "dyanmic:" << this->dynamic << "," << "size:" << this->size << ","
-       << "pool_size:" << this->pools.size() << "," << "used_size:" << this->used.size() << ","
+    ss << "name:" << this->name << ","
+       << "dyanmic:" << this->dynamic << ","
+       << "size:" << this->size << ","
+       << "pool_size:" << this->pools.size() << ","
+       << "used_size:" << this->used.size() << ","
        << "free_size:" << this->frees.size();
     return ss.str();
   }
