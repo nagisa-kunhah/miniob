@@ -66,6 +66,9 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %token  SEMICOLON
         BY
         CREATE
+        MATERIALIZED
+        VIEW
+        AS
         DROP
         GROUP
         ORDER
@@ -198,6 +201,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <sql_node>            update_stmt
 %type <sql_node>            delete_stmt
 %type <sql_node>            create_table_stmt
+%type <sql_node>            create_materialized_view_stmt
 %type <sql_node>            drop_table_stmt
 %type <sql_node>            analyze_table_stmt
 %type <sql_node>            show_tables_stmt
@@ -236,6 +240,7 @@ command_wrapper:
   | update_stmt
   | delete_stmt
   | create_table_stmt
+  | create_materialized_view_stmt
   | drop_table_stmt
   | analyze_table_stmt
   | show_tables_stmt
@@ -350,6 +355,23 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       }
       if ($8 != nullptr) {
         create_table.storage_format = $8;
+      }
+    }
+    ;
+
+create_materialized_view_stmt:
+    CREATE MATERIALIZED VIEW ID AS select_stmt
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_MATERIALIZED_VIEW);
+      CreateMaterializedViewSqlNode &create_mv = $$->create_materialized_view;
+      create_mv.relation_name = $4;
+
+      if ($6 != nullptr) {
+        create_mv.selection.expressions.swap($6->selection.expressions);
+        create_mv.selection.relations.swap($6->selection.relations);
+        create_mv.selection.conditions.swap($6->selection.conditions);
+        create_mv.selection.group_by.swap($6->selection.group_by);
+        delete $6;
       }
     }
     ;

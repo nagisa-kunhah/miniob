@@ -37,11 +37,15 @@ public:
 
 public:
   const char *name() const;
+  const char *display_name() const;
   AttrType    type() const;
   int         offset() const;
   int         len() const;
   bool        visible() const;
   int         field_id() const;
+
+public:
+  void set_display_name(string display_name);
 
 public:
   void desc(ostream &os) const;
@@ -52,6 +56,7 @@ public:
 
 protected:
   string   name_;
+  string   display_name_;
   AttrType attr_type_;
   int      attr_offset_;
   int      attr_len_;
