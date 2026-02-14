@@ -19,6 +19,8 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/memory.h"
 #include "common/value.h"
 #include "common/lang/utility.h"
+#include <memory>
+#include <vector>
 
 class Expression;
 
@@ -86,12 +88,25 @@ struct ConditionSqlNode
  * 甚至可以包含复杂的表达式。
  */
 
+/**
+ * @brief ORDER BY 子句的单个排序项
+ * @ingroup SQLParser
+ * @details 表示 ORDER BY 中的一个字段及其排序方向
+ */
+struct OrderByNode
+{
+  unique_ptr<Expression> expr;     ///< 排序表达式（可以是列名、表达式等）
+  bool                   is_desc;  ///< 是否降序（true=DESC, false=ASC）
+};
+
 struct SelectSqlNode
 {
   vector<unique_ptr<Expression>> expressions;  ///< 查询的表达式
   vector<string>                 relations;    ///< 查询的表
   vector<ConditionSqlNode>       conditions;   ///< 查询条件，使用AND串联起来多个条件
   vector<unique_ptr<Expression>> group_by;     ///< group by clause
+  vector<OrderByNode>            order_by;     ///< order by clause（包含排序方向）
+  int                            limit;        ///< limit clause
 };
 
 /**

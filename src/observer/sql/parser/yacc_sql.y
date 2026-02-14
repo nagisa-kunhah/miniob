@@ -71,11 +71,14 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         AS
         DROP
         GROUP
+        ORDER
+        LIMIT
         TABLE
         TABLES
         INDEX
         CALC
         SELECT
+        ASC
         DESC
         SHOW
         SYNC
@@ -138,6 +141,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
   vector<RelAttrSqlNode> *                   rel_attr_list;
   vector<string> *                           relation_list;
   vector<string> *                           key_list;
+  vector<OrderByNode> *                      order_by_list;
+  OrderByNode *                              order_by_item;
   char *                                     cstring;
   int                                        number;
   float                                      floats;
@@ -154,6 +159,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 // %destructor { delete $$; } <rel_attr_list>
 %destructor { delete $$; } <relation_list>
 %destructor { delete $$; } <key_list>
+%destructor { delete $$; } <order_by_list>
+%destructor { delete $$; } <order_by_item>
 
 %token <number> NUMBER
 %token <floats> FLOAT
@@ -182,6 +189,10 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <expression>          aggregate_expression
 %type <expression_list>     expression_list
 %type <expression_list>     group_by
+%type <order_by_list>       order_by_list
+%type <order_by_item>       order_by_item
+%type <order_by_list>       order_by
+%type <number>              limit
 %type <cstring>             fields_terminated_by
 %type <cstring>             enclosed_by
 %type <sql_node>            calc_stmt
@@ -512,7 +523,7 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT expression_list FROM rel_list where group_by
+    SELECT expression_list FROM rel_list where group_by order_by limit
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -533,6 +544,17 @@ select_stmt:        /*  select 语句的语法解析树*/
       if ($6 != nullptr) {
         $$->selection.group_by.swap(*$6);
         delete $6;
+      }
+
+      if ($7 != nullptr) {
+        $$->selection.order_by.swap(*$7);
+        delete $7;
+      }
+
+      if ($8 != -1) {
+        $$->selection.limit = $8;
+      } else {
+        $$->selection.limit = -1;  // 没有 LIMIT 时设置为 -1
       }
     }
     ;
@@ -737,6 +759,64 @@ group_by:
       $$ = $3;
     }
     ;
+order_by:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | ORDER BY order_by_list
+    {
+      $$ = $3;
+    }
+    ;
+
+order_by_list:
+    order_by_item
+    {
+      $$ = new vector<OrderByNode>;
+      $$->emplace_back(std::move(*$1));
+      delete $1;
+    }
+    | order_by_item COMMA order_by_list
+    {
+      $$ = $3;
+      $$->emplace($$->begin(), std::move(*$1));
+      delete $1;
+    }
+    ;
+
+order_by_item:
+    expression
+    {
+      $$ = new OrderByNode;
+      $$->expr = unique_ptr<Expression>($1);
+      $$->is_desc = false;  // 默认 ASC
+    }
+    | expression ASC
+    {
+      $$ = new OrderByNode;
+      $$->expr = unique_ptr<Expression>($1);
+      $$->is_desc = false;
+    }
+    | expression DESC
+    {
+      $$ = new OrderByNode;
+      $$->expr = unique_ptr<Expression>($1);
+      $$->is_desc = true;
+    }
+    ;
+
+limit:
+    /* empty */
+    {
+      $$ = -1;  // -1 表示没有 LIMIT
+    }
+    | LIMIT NUMBER
+    {
+      $$ = $2;
+    }
+    ;
+
 load_data_stmt:
     LOAD DATA INFILE SSS INTO TABLE ID fields_terminated_by enclosed_by
     {

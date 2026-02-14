@@ -28,8 +28,7 @@ Value::Value(bool val) { set_boolean(val); }
 
 Value::Value(const char *s, int len /*= 0*/) { set_string(s, len); }
 
-Value::Value(const string_t& s) { set_string(s.data(), s.size()); }
-
+Value::Value(const string_t &s) { set_string(s.data(), s.size()); }
 
 Value::Value(const Value &other)
 {
@@ -129,13 +128,13 @@ void Value::set_data(char *data, int length)
       length_            = length;
     } break;
     case AttrType::DATE: {
-      value_.date_value_ = *(uint32_t*)data;
+      value_.date_value_ = *(uint32_t *)data;
       length_            = length;
-    }break;
+    } break;
     case AttrType::BIGINT: {
-      value_.bigint_value_ = *(int64_t*)data;
-      length_            = length;
-    }break;
+      value_.bigint_value_ = *(int64_t *)data;
+      length_              = length;
+    } break;
     case AttrType::TEXT: {
       set_string(data, length);
     } break;
@@ -194,12 +193,11 @@ void Value::set_empty_string(int len)
   reset();
   attr_type_ = AttrType::CHARS;
 
-  own_data_ = true;
+  own_data_             = true;
   value_.pointer_value_ = new char[len + 1];
   length_               = len;
   memset(value_.pointer_value_, 0, len);
   value_.pointer_value_[len] = '\0';
-  
 }
 
 void Value::set_value(const Value &value)
@@ -256,7 +254,10 @@ string Value::to_string() const
   return res;
 }
 
-int Value::compare(const Value &other) const { return DataType::type_instance(this->attr_type_)->compare(*this, other); }
+int Value::compare(const Value &other) const
+{
+  return DataType::type_instance(this->attr_type_)->compare(*this, other);
+}
 
 int Value::get_int() const
 {
@@ -361,12 +362,14 @@ bool Value::get_boolean() const
   return false;
 }
 
-uint32_t Value::get_date() const {
+uint32_t Value::get_date() const
+{
   ASSERT(attr_type_ == AttrType::DATE, "attr type is not DATE");
   return value_.date_value_;
 }
 
-int64_t Value::get_bigint() const {
+int64_t Value::get_bigint() const
+{
   if (AttrType::INTS == attr_type_) {
     return value_.bigint_value_;
   } else if (AttrType::BIGINT == attr_type_) {
@@ -377,9 +380,10 @@ int64_t Value::get_bigint() const {
   return 0;
 }
 
-void Value::set_bigint(int64_t val) {
+void Value::set_bigint(int64_t val)
+{
   reset();
-  attr_type_ = AttrType::BIGINT;
+  attr_type_           = AttrType::BIGINT;
   value_.bigint_value_ = val;
-  length_ = sizeof(val);
+  length_              = sizeof(val);
 }
