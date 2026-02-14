@@ -98,7 +98,7 @@ RC Table::create(Db *db, int32_t table_id, const char *path, const char *name, c
   table_meta_.serialize(fs);
   fs.close();
 
-  db_       = db;
+  db_             = db;
   meta_file_path_ = path;
 
   string             data_file = table_data_file(base_dir, name);
@@ -145,7 +145,7 @@ RC Table::open(Db *db, const char *meta_file, const char *base_dir)
   }
   fs.close();
 
-  db_       = db;
+  db_ = db;
   meta_file_path_.swap(meta_file_path);
 
   // // 加载数据文件
@@ -178,8 +178,8 @@ RC Table::open(Db *db, const char *meta_file, const char *base_dir)
 
 RC Table::set_field_display_names(span<const string> display_names)
 {
-  const int sys_field_num   = table_meta_.sys_field_num();
-  const int visible_fields  = table_meta_.field_num() - sys_field_num;
+  const int sys_field_num  = table_meta_.sys_field_num();
+  const int visible_fields = table_meta_.field_num() - sys_field_num;
   if (static_cast<int>(display_names.size()) != visible_fields) {
     LOG_WARN("invalid display names size. expect=%d, got=%d, table=%s",
         visible_fields,
@@ -209,10 +209,7 @@ RC Table::set_field_display_names(span<const string> display_names)
   return RC::SUCCESS;
 }
 
-RC Table::insert_record(Record &record)
-{
-  return engine_->insert_record(record);
-}
+RC Table::insert_record(Record &record) { return engine_->insert_record(record); }
 
 RC Table::insert_chunk(const Chunk &chunk) { return engine_->insert_chunk(chunk); }
 

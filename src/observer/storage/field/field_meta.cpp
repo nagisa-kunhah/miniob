@@ -49,7 +49,7 @@ RC FieldMeta::init(const char *name, AttrType attr_type, int attr_offset, int at
     return RC::INVALID_ARGUMENT;
   }
 
-  name_        = name;
+  name_         = name;
   display_name_ = name;
   attr_type_   = attr_type;
   attr_len_    = attr_len;
@@ -91,14 +91,14 @@ void FieldMeta::desc(ostream &os) const
 
 void FieldMeta::to_json(Json::Value &json_value) const
 {
-  json_value[FIELD_NAME]    = name_;
+  json_value[FIELD_NAME] = name_;
   if (!display_name_.empty() && display_name_ != name_) {
     json_value[FIELD_DISPLAY_NAME] = display_name_;
   }
-  json_value[FIELD_TYPE]    = attr_type_to_string(attr_type_);
-  json_value[FIELD_OFFSET]  = attr_offset_;
-  json_value[FIELD_LEN]     = attr_len_;
-  json_value[FIELD_VISIBLE] = visible_;
+  json_value[FIELD_TYPE]     = attr_type_to_string(attr_type_);
+  json_value[FIELD_OFFSET]   = attr_offset_;
+  json_value[FIELD_LEN]      = attr_len_;
+  json_value[FIELD_VISIBLE]  = visible_;
   json_value[FIELD_FIELD_ID] = field_id_;
 }
 
@@ -149,12 +149,12 @@ RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field)
     return RC::INTERNAL;
   }
 
-  const char *name    = name_value.asCString();
-  int         offset  = offset_value.asInt();
-  int         len     = len_value.asInt();
-  bool        visible = visible_value.asBool();
-  int         field_id  = field_id_value.asInt();
-  RC rc = field.init(name, type, offset, len, visible, field_id);
+  const char *name     = name_value.asCString();
+  int         offset   = offset_value.asInt();
+  int         len      = len_value.asInt();
+  bool        visible  = visible_value.asBool();
+  int         field_id = field_id_value.asInt();
+  RC          rc       = field.init(name, type, offset, len, visible, field_id);
   if (OB_FAIL(rc)) {
     return rc;
   }

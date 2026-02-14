@@ -33,13 +33,13 @@ public:
 
   StmtType type() const override { return StmtType::CREATE_MATERIALIZED_VIEW; }
 
-  const string      &view_name() const { return view_name_; }
-  SelectSqlNode     &select_sql() { return select_sql_; }
+  const string        &view_name() const { return view_name_; }
+  SelectSqlNode       &select_sql() { return select_sql_; }
   const SelectSqlNode &select_sql() const { return select_sql_; }
 
   static RC create(Db *db, CreateMaterializedViewSqlNode &create_mv, Stmt *&stmt);
 
 private:
-  string      view_name_;
+  string        view_name_;
   SelectSqlNode select_sql_;
 };

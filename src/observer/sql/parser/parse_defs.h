@@ -327,23 +327,23 @@ enum SqlCommandFlag
 class ParsedSqlNode
 {
 public:
-  enum SqlCommandFlag flag;
-  ErrorSqlNode        error;
-  CalcSqlNode         calc;
-  SelectSqlNode       selection;
-  InsertSqlNode       insertion;
-  DeleteSqlNode       deletion;
-  UpdateSqlNode       update;
-  CreateTableSqlNode  create_table;
+  enum SqlCommandFlag           flag;
+  ErrorSqlNode                  error;
+  CalcSqlNode                   calc;
+  SelectSqlNode                 selection;
+  InsertSqlNode                 insertion;
+  DeleteSqlNode                 deletion;
+  UpdateSqlNode                 update;
+  CreateTableSqlNode            create_table;
   CreateMaterializedViewSqlNode create_materialized_view;
-  DropTableSqlNode    drop_table;
-  AnalyzeTableSqlNode analyze_table;
-  CreateIndexSqlNode  create_index;
-  DropIndexSqlNode    drop_index;
-  DescTableSqlNode    desc_table;
-  LoadDataSqlNode     load_data;
-  ExplainSqlNode      explain;
-  SetVariableSqlNode  set_variable;
+  DropTableSqlNode              drop_table;
+  AnalyzeTableSqlNode           analyze_table;
+  CreateIndexSqlNode            create_index;
+  DropIndexSqlNode              drop_index;
+  DescTableSqlNode              desc_table;
+  LoadDataSqlNode               load_data;
+  ExplainSqlNode                explain;
+  SetVariableSqlNode            set_variable;
 
 public:
   ParsedSqlNode();

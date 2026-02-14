@@ -132,7 +132,7 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
   vector<AttrInfoSqlNode> attr_infos;
   attr_infos.reserve(query_expressions.size());
   unordered_map<string, int> used_names;
-  vector<string> display_names;
+  vector<string>             display_names;
   display_names.reserve(query_expressions.size());
 
   for (size_t i = 0; i < query_expressions.size(); i++) {
@@ -176,8 +176,7 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
     return RC::INTERNAL;
   }
 
-  rc = mv_table->set_field_display_names(
-      span<const string>(display_names.data(), display_names.size()));
+  rc = mv_table->set_field_display_names(span<const string>(display_names.data(), display_names.size()));
   if (OB_FAIL(rc)) {
     return rc;
   }
@@ -223,7 +222,7 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
         break;
       }
 
-      const int rows = chunk.rows();
+      const int     rows = chunk.rows();
       vector<Value> values;
       values.resize(expected_columns);
       for (int r = 0; r < rows && OB_SUCC(rc); r++) {
