@@ -51,11 +51,11 @@ RC FieldMeta::init(const char *name, AttrType attr_type, int attr_offset, int at
 
   name_         = name;
   display_name_ = name;
-  attr_type_   = attr_type;
-  attr_len_    = attr_len;
-  attr_offset_ = attr_offset;
-  visible_     = visible;
-  field_id_    = field_id;
+  attr_type_    = attr_type;
+  attr_len_     = attr_len;
+  attr_offset_  = attr_offset;
+  visible_      = visible;
+  field_id_     = field_id;
 
   LOG_INFO("Init a field with name=%s", name);
   return RC::SUCCESS;
@@ -109,12 +109,12 @@ RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field)
     return RC::INTERNAL;
   }
 
-  const Json::Value &name_value     = json_value[FIELD_NAME];
-  const Json::Value &type_value     = json_value[FIELD_TYPE];
-  const Json::Value &offset_value   = json_value[FIELD_OFFSET];
-  const Json::Value &len_value      = json_value[FIELD_LEN];
-  const Json::Value &visible_value  = json_value[FIELD_VISIBLE];
-  const Json::Value &field_id_value = json_value[FIELD_FIELD_ID];
+  const Json::Value &name_value         = json_value[FIELD_NAME];
+  const Json::Value &type_value         = json_value[FIELD_TYPE];
+  const Json::Value &offset_value       = json_value[FIELD_OFFSET];
+  const Json::Value &len_value          = json_value[FIELD_LEN];
+  const Json::Value &visible_value      = json_value[FIELD_VISIBLE];
+  const Json::Value &field_id_value     = json_value[FIELD_FIELD_ID];
   const Json::Value &display_name_value = json_value[FIELD_DISPLAY_NAME];
 
   if (!name_value.isString()) {
