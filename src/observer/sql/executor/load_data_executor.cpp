@@ -22,6 +22,76 @@ See the Mulan PSL v2 for more details. */
 
 using namespace common;
 
+namespace {
+
+void split_line_simple(const string &line, const char terminated, vector<string> &fields)
+{
+  fields.clear();
+  string current;
+  for (char c : line) {
+    if (c == terminated) {
+      fields.emplace_back(std::move(current));
+      current.clear();
+    } else {
+      current.push_back(c);
+    }
+  }
+  fields.emplace_back(std::move(current));
+}
+
+// Split a line by `terminated`, honoring optional enclosing quotes.
+// - If `enclosed` is 0, behaves like a simple split (but preserves empty fields).
+// - If `enclosed` is non-zero, treats `enclosed ... enclosed` as a quoted field where
+//   delimiters inside quotes are not split.
+// - Inside a quoted field, `""` is treated as one `"` (CSV-style escaping).
+void split_line_with_enclosed(const string &line, const char terminated, const char enclosed, vector<string> &fields)
+{
+  if (enclosed == 0) {
+    split_line_simple(line, terminated, fields);
+    return;
+  }
+
+  fields.clear();
+  string current;
+  bool   in_quotes = false;
+
+  for (size_t i = 0; i < line.size(); i++) {
+    const char c = line[i];
+
+    if (!in_quotes && c == terminated) {
+      fields.emplace_back(std::move(current));
+      current.clear();
+      continue;
+    }
+
+    if (c == enclosed) {
+      if (in_quotes) {
+        // CSV escaping: "" -> "
+        if (i + 1 < line.size() && line[i + 1] == enclosed) {
+          current.push_back(enclosed);
+          i++;
+        } else {
+          in_quotes = false;  // consume closing quote
+        }
+      } else {
+        // Start quoted field only when quote appears at the beginning of the field.
+        if (current.empty()) {
+          in_quotes = true;
+        } else {
+          current.push_back(c);
+        }
+      }
+      continue;
+    }
+
+    current.push_back(c);
+  }
+
+  fields.emplace_back(std::move(current));
+}
+
+}  // namespace
+
 RC LoadDataExecutor::execute(SQLStageEvent *sql_event)
 {
   RC            rc         = RC::SUCCESS;
@@ -105,10 +175,10 @@ void LoadDataExecutor::load_data(
   vector<Value>  record_values(field_num);
   string         line;
   vector<string> file_values;
-  const string   delim("|");
   int            line_num        = 0;
   int            insertion_count = 0;
   RC             rc              = RC::SUCCESS;
+  const char     effective_terminated = (terminated != 0) ? terminated : '|';
   while (!fs.eof() && RC::SUCCESS == rc) {
     getline(fs, line);
     line_num++;
@@ -117,7 +187,10 @@ void LoadDataExecutor::load_data(
     }
 
     file_values.clear();
-    common::split_string(line, delim, file_values);
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();  // handle CRLF files
+    }
+    split_line_with_enclosed(line, effective_terminated, enclosed, file_values);
     stringstream errmsg;
 
     if (table->table_meta().storage_format() == StorageFormat::ROW_FORMAT ||
@@ -141,6 +214,7 @@ void LoadDataExecutor::load_data(
   if (RC::SUCCESS == rc) {
     result_string << strrc(rc);
   }
-  LOG_INFO("load data done. row num: %s, result: %s", insertion_count, strrc(rc));
-  sql_result->set_return_code(RC::SUCCESS);
+  LOG_INFO("load data done. row num: %d, result: %s", insertion_count, strrc(rc));
+  sql_result->set_return_code(rc);
+  sql_result->set_state_string(result_string.str());
 }
