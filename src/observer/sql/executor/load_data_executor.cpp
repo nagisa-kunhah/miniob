@@ -163,10 +163,11 @@ void LoadDataExecutor::load_data(
 
   struct timespec end_time;
   clock_gettime(CLOCK_MONOTONIC, &end_time);
-  if (RC::SUCCESS == rc) {
-    result_string << strrc(rc);
-  }
   LOG_INFO("load data done. row num: %d, result: %s", insertion_count, strrc(rc));
   sql_result->set_return_code(rc);
-  sql_result->set_state_string(result_string.str());
+  if (rc != RC::SUCCESS) {
+    sql_result->set_state_string(result_string.str());
+  } else {
+    sql_result->set_state_string("");
+  }
 }
