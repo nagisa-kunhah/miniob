@@ -13,3 +13,6 @@
 [submodule "deps/3rd/replxx"]
 	path = deps/3rd/replxx
 	url = https://github.com/AmokHuginnsson/replxx
+[submodule "deps/3rd/csv-parser"]
+	path = deps/3rd/csv-parser
+	url = https://github.com/vincentlaucsb/csv-parser
