@@ -198,7 +198,7 @@ void LoadDataExecutor::load_data(
       rc = insert_record_from_file(table, file_values, record_values, errmsg);
       if (rc != RC::SUCCESS) {
         result_string << "Line:" << line_num << " insert record failed:" << errmsg.str() << ". error:" << strrc(rc)
-                      << "content:" << line<< endl;
+                      << endl;      
       } else {
         insertion_count++;
       }
