@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/executor/sql_result.h"
 #include "sql/stmt/load_data_stmt.h"
 #include "storage/common/chunk.h"
+#include "common/type/attr_type.h"
 
 #include "3rd/csv.hpp"
 
@@ -60,7 +61,7 @@ RC insert_record_from_file(
     const FieldMeta *field = table->table_meta().field(i + sys_field_num);
 
     string &file_value = file_values[i];
-    if (field->type() != AttrType::CHARS) {
+    if (!is_string_type(field->type())) {
       common::strip(file_value);
     }
     rc = DataType::type_instance(field->type())->set_value_from_str(record_values[i], file_value);

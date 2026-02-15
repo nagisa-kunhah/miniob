@@ -39,3 +39,15 @@ public:
 private:
   PersistHandler file_;
 };
+
+/**
+ * @brief On-disk reference for a TEXT value stored in the LOB file.
+ * @details Stored inside record data for AttrType::TEXT columns.
+ */
+struct TextLobRef
+{
+  int64_t offset = 0;
+  int64_t length = 0;
+};
+
+static_assert(sizeof(TextLobRef) == 16, "TextLobRef must be 16 bytes");

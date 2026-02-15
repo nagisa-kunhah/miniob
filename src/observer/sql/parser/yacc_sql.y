@@ -92,8 +92,10 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         TRX_COMMIT
         TRX_ROLLBACK
         INT_T
+        BIGINT_T
         STRING_T
         FLOAT_T
+        DATE_T
         TEXT
         VECTOR_T
         HELP
@@ -405,10 +407,14 @@ attr_def:
       $$->type = (AttrType)$2;
       $$->name = $1;
 
-      if ($2 == (int)AttrType::TEXT) {
-        $$->length = 4096;  // TEXT 默认 65535 字节（使用 LOB 存储）
-      } else {
-        $$->length = 4;
+      switch ((AttrType)$2) {
+        case AttrType::TEXT:   $$->length = 16; break;  // TEXT 使用 LOB 存储，记录中保存 offset/length 引用
+        case AttrType::BIGINT: $$->length = sizeof(int64_t); break;
+        case AttrType::DATE:   $$->length = sizeof(uint32_t); break;
+        case AttrType::FLOATS: $$->length = sizeof(float); break;
+        case AttrType::INTS:   $$->length = sizeof(int); break;
+        case AttrType::CHARS:  $$->length = 4; break;
+        default:               $$->length = 4; break;
       }
     }
     ;
@@ -417,8 +423,10 @@ number:
     ;
 type:
     INT_T      { $$ = static_cast<int>(AttrType::INTS); }
+    | BIGINT_T { $$ = static_cast<int>(AttrType::BIGINT); }
     | STRING_T { $$ = static_cast<int>(AttrType::CHARS); }
     | FLOAT_T  { $$ = static_cast<int>(AttrType::FLOATS); }
+    | DATE_T   { $$ = static_cast<int>(AttrType::DATE); }
     | VECTOR_T { $$ = static_cast<int>(AttrType::VECTORS); }
     | TEXT     { $$ = static_cast<int>(AttrType::TEXT); }
     ;

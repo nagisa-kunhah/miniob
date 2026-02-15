@@ -527,7 +527,31 @@ RC PaxRecordPageHandler::get_chunk(Chunk &chunk)
     int    target_col = chunk.column_ids(col_idx);
     for (int slot_idx = bitmap.next_setted_bit(0); slot_idx != -1; slot_idx = bitmap.next_setted_bit(slot_idx + 1)) {
       char *data = get_field_data(slot_idx, target_col);
-      column.append_one(data);
+      if (column.attr_type() == AttrType::TEXT) {
+        if (lob_handler_ == nullptr) {
+          LOG_WARN("lob handler is null while reading text column. page=%d", get_page_num());
+          return RC::INTERNAL;
+        }
+        const TextLobRef &ref = *reinterpret_cast<const TextLobRef *>(data);
+        if (ref.length == 0) {
+          string_t s("", 0);
+          column.append_one(reinterpret_cast<const char *>(&s));
+          continue;
+        }
+
+        string buf;
+        buf.resize(static_cast<size_t>(ref.length));
+        RC rc = lob_handler_->get_data(ref.offset, ref.length, buf.data());
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to read text from lob. offset=%ld, len=%ld, rc=%s", ref.offset, ref.length, strrc(rc));
+          return rc;
+        }
+
+        string_t s = column.add_text(buf.data(), static_cast<int>(ref.length));
+        column.append_one(reinterpret_cast<const char *>(&s));
+      } else {
+        column.append_one(data);
+      }
     }
   }
   return RC::SUCCESS;

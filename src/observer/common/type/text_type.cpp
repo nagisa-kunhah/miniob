@@ -21,16 +21,23 @@ int TextType::compare(const Value &left, const Value &right) const
 
 RC TextType::set_value_from_str(Value &val, const string &data) const
 {
-  val.set_string(data.c_str());
+  val.set_text(data.c_str(), static_cast<int>(data.size()));
   return RC::SUCCESS;
 }
 
 RC TextType::cast_to(const Value &val, AttrType type, Value &result) const
 {
   switch (type) {
+    case AttrType::TEXT: {
+      result.set_text(val.data(), val.length());
+      return RC::SUCCESS;
+    }
+    case AttrType::CHARS: {
+      result.set_string(val.data(), val.length());
+      return RC::SUCCESS;
+    }
     default: return RC::UNIMPLEMENTED;
   }
-  return RC::SUCCESS;
 }
 
 int TextType::cast_cost(AttrType type)
@@ -38,12 +45,15 @@ int TextType::cast_cost(AttrType type)
   if (type == AttrType::TEXT) {
     return 0;
   }
+  if (type == AttrType::CHARS) {
+    return 2;
+  }
 
   return INT32_MAX;
 }
 
 RC TextType::to_string(const Value &val, string &result) const
 {
-  result = val.get_string();
+  result.assign(val.data() == nullptr ? "" : val.data(), val.length());
   return RC::SUCCESS;
 }

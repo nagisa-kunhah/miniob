@@ -196,6 +196,28 @@ public:
     FieldExpr       *field_expr = speces_[index];
     const FieldMeta *field_meta = field_expr->field().meta();
     cell.reset();
+    if (field_meta->type() == AttrType::TEXT) {
+      const TextLobRef &ref =
+          *reinterpret_cast<const TextLobRef *>(this->record_->data() + field_meta->offset());
+      if (table_ == nullptr || table_->lob_handler() == nullptr) {
+        LOG_WARN("lob handler is null while reading text value. table=%s", table_ == nullptr ? "(null)" : table_->name());
+        return RC::INTERNAL;
+      }
+      if (ref.length == 0) {
+        cell.set_text("", 0);
+        return RC::SUCCESS;
+      }
+      string buf;
+      buf.resize(static_cast<size_t>(ref.length));
+      RC rc = table_->lob_handler()->get_data(ref.offset, ref.length, buf.data());
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to read text from lob. offset=%ld, len=%ld, rc=%s", ref.offset, ref.length, strrc(rc));
+        return rc;
+      }
+      cell.set_text(buf.data(), static_cast<int>(ref.length));
+      return RC::SUCCESS;
+    }
+
     cell.set_type(field_meta->type());
     cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
     return RC::SUCCESS;
