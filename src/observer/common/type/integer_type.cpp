@@ -39,6 +39,10 @@ int IntegerType::compare(const Column &left, const Column &right, int left_idx, 
 RC IntegerType::cast_to(const Value &val, AttrType type, Value &result) const
 {
   switch (type) {
+    case AttrType::BIGINT: {
+      result.set_bigint(static_cast<int64_t>(val.get_int()));
+      return RC::SUCCESS;
+    }
     case AttrType::FLOATS: {
       float float_value = val.get_int();
       result.set_float(float_value);

@@ -5,6 +5,23 @@
 
 int BigIntType::compare(const Value &left, const Value &right) const
 {
+  ASSERT(left.attr_type() == AttrType::BIGINT, "left type is not bigint");
+  ASSERT(right.attr_type() == AttrType::BIGINT || right.attr_type() == AttrType::INTS || right.attr_type() == AttrType::FLOATS,
+      "right type is not numeric");
+
+  if (right.attr_type() == AttrType::FLOATS) {
+    float   right_val = right.get_float();
+    int64_t left_val  = left.get_bigint();
+    double  left_d    = static_cast<double>(left_val);
+    double  right_d   = static_cast<double>(right_val);
+    if (left_d < right_d) {
+      return -1;
+    } else if (left_d > right_d) {
+      return 1;
+    }
+    return 0;
+  }
+
   int64_t left_val  = left.get_bigint();
   int64_t right_val = right.get_bigint();
   return common::compare_int64((void *)&left_val, (void *)&right_val);
@@ -13,8 +30,16 @@ int BigIntType::compare(const Value &left, const Value &right) const
 RC BigIntType::cast_to(const Value &val, AttrType type, Value &result) const
 {
   switch (type) {
+    case AttrType::BIGINT: {
+      result.set_bigint(val.get_bigint());
+      return RC::SUCCESS;
+    }
+    case AttrType::INTS: {
+      result.set_int(static_cast<int>(val.get_bigint()));
+      return RC::SUCCESS;
+    }
     case AttrType::FLOATS: {
-      float float_value = val.get_int();
+      float float_value = static_cast<float>(val.get_bigint());
       result.set_float(float_value);
       return RC::SUCCESS;
     }
@@ -36,13 +61,13 @@ RC BigIntType::subtract(const Value &left, const Value &right, Value &result) co
 
 RC BigIntType::multiply(const Value &left, const Value &right, Value &result) const
 {
-  result.set_int(left.get_bigint() * right.get_bigint());
+  result.set_bigint(left.get_bigint() * right.get_bigint());
   return RC::SUCCESS;
 }
 
 RC BigIntType::negative(const Value &val, Value &result) const
 {
-  result.set_int(-val.get_bigint());
+  result.set_bigint(-val.get_bigint());
   return RC::SUCCESS;
 }
 

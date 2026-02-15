@@ -22,6 +22,10 @@ public:
   {
     if (type == AttrType::BIGINT) {
       return 0;
+    } else if (type == AttrType::FLOATS) {
+      return 1;
+    } else if (type == AttrType::INTS) {
+      return 2;
     }
     return INT32_MAX;
   }

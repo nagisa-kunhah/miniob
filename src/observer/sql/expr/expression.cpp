@@ -241,7 +241,30 @@ RC ComparisonExpr::eval(Chunk &chunk, vector<uint8_t> &select)
     rc = compare_column<int>(left_column, right_column, select);
   } else if (left_column.attr_type() == AttrType::FLOATS) {
     rc = compare_column<float>(left_column, right_column, select);
+  } else if (left_column.attr_type() == AttrType::BIGINT) {
+    rc = compare_column<int64_t>(left_column, right_column, select);
+  } else if (left_column.attr_type() == AttrType::DATE) {
+    rc = compare_column<uint32_t>(left_column, right_column, select);
   } else if (left_column.attr_type() == AttrType::CHARS) {
+    int rows = 0;
+    if (left_column.column_type() == Column::Type::CONSTANT_COLUMN) {
+      rows = right_column.count();
+    } else {
+      rows = left_column.count();
+    }
+    for (int i = 0; i < rows; ++i) {
+      Value left_val  = left_column.get_value(i);
+      Value right_val = right_column.get_value(i);
+      bool  result    = false;
+      rc              = compare_value(left_val, right_val, result);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to compare tuple cells. rc=%s", strrc(rc));
+        return rc;
+      }
+      select[i] &= result ? 1 : 0;
+    }
+
+  } else if (left_column.attr_type() == AttrType::TEXT) {
     int rows = 0;
     if (left_column.column_type() == Column::Type::CONSTANT_COLUMN) {
       rows = right_column.count();

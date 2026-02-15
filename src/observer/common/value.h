@@ -96,6 +96,8 @@ public:
   void set_value(const Value &value);
   void set_boolean(bool val);
   void set_bigint(int64_t val);
+  void set_date(uint32_t val);
+  void set_text(const char *s, int len = 0);
 
   string to_string() const;
 

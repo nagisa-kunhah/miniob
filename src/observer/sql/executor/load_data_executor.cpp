@@ -19,8 +19,10 @@ See the Mulan PSL v2 for more details. */
 #include "sql/executor/sql_result.h"
 #include "sql/stmt/load_data_stmt.h"
 #include "storage/common/chunk.h"
+#include "common/type/attr_type.h"
 
-using namespace common;
+#include "3rd/csv.hpp"
+
 
 RC LoadDataExecutor::execute(SQLStageEvent *sql_event)
 {
@@ -59,7 +61,7 @@ RC insert_record_from_file(
     const FieldMeta *field = table->table_meta().field(i + sys_field_num);
 
     string &file_value = file_values[i];
-    if (field->type() != AttrType::CHARS) {
+    if (!is_string_type(field->type())) {
       common::strip(file_value);
     }
     rc = DataType::type_instance(field->type())->set_value_from_str(record_values[i], file_value);
@@ -103,44 +105,70 @@ void LoadDataExecutor::load_data(
   const int field_num     = table->table_meta().field_num() - sys_field_num;
 
   vector<Value>  record_values(field_num);
-  string         line;
-  vector<string> file_values;
-  const string   delim("|");
-  int            line_num        = 0;
   int            insertion_count = 0;
   RC             rc              = RC::SUCCESS;
-  while (!fs.eof() && RC::SUCCESS == rc) {
-    getline(fs, line);
-    line_num++;
-    if (common::is_blank(line.c_str())) {
-      continue;
-    }
+  const char     effective_terminated = (terminated != 0) ? terminated : ',';
 
-    file_values.clear();
-    common::split_string(line, delim, file_values);
-    stringstream errmsg;
-
-    if (table->table_meta().storage_format() == StorageFormat::ROW_FORMAT ||
-        table->table_meta().storage_format() == StorageFormat::PAX_FORMAT) {
-      rc = insert_record_from_file(table, file_values, record_values, errmsg);
-      if (rc != RC::SUCCESS) {
-        result_string << "Line:" << line_num << " insert record failed:" << errmsg.str() << ". error:" << strrc(rc)
-                      << endl;
-      } else {
-        insertion_count++;
-      }
+  try {
+    csv::CSVFormat format;
+    format.delimiter(effective_terminated).no_header().variable_columns(csv::VariableColumnPolicy::KEEP);
+    if (enclosed != 0) {
+      format.quote(enclosed);
     } else {
-      rc = RC::UNSUPPORTED;
-      result_string << "Unsupported storage format: " << strrc(rc) << endl;
+      format.quote(false);
     }
+
+    csv::CSVReader reader(fs, format);
+    csv::CSVRow    row;
+
+    int record_num = 0;
+    while (reader.read_row(row) && RC::SUCCESS == rc) {
+      record_num++;
+
+      if (row.size() == 0) {
+        continue;
+      }
+
+      vector<string> file_values;
+      file_values.reserve(row.size());
+      for (csv::CSVField field : row) {
+        file_values.emplace_back(field.get<>());
+      }
+
+      if (file_values.size() == 1 && common::is_blank(file_values[0].c_str())) {
+        continue;
+      }
+
+      stringstream errmsg;
+
+      if (table->table_meta().storage_format() == StorageFormat::ROW_FORMAT ||
+          table->table_meta().storage_format() == StorageFormat::PAX_FORMAT) {
+        rc = insert_record_from_file(table, file_values, record_values, errmsg);
+        if (rc != RC::SUCCESS) {
+          result_string << "Line:" << record_num << " insert record failed:" << errmsg.str()
+                        << ". error:" << strrc(rc) << endl;
+        } else {
+          insertion_count++;
+          rc = RC::SUCCESS;
+        }
+      } else {
+        rc = RC::UNSUPPORTED;
+        result_string << "Unsupported storage format: " << strrc(rc) << endl;
+      }
+    }
+  } catch (const std::exception &ex) {
+    rc = RC::INVALID_ARGUMENT;
+    result_string << "Load record failed. error:" << ex.what() << endl;
   }
   fs.close();
 
   struct timespec end_time;
   clock_gettime(CLOCK_MONOTONIC, &end_time);
-  if (RC::SUCCESS == rc) {
-    result_string << strrc(rc);
+  LOG_INFO("load data done. row num: %d, result: %s", insertion_count, strrc(rc));
+  sql_result->set_return_code(rc);
+  if (rc != RC::SUCCESS) {
+    sql_result->set_state_string(result_string.str());
+  } else {
+    sql_result->set_state_string("");
   }
-  LOG_INFO("load data done. row num: %s, result: %s", insertion_count, strrc(rc));
-  sql_result->set_return_code(RC::SUCCESS);
 }

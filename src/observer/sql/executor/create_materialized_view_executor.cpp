@@ -77,7 +77,7 @@ static int default_length_for_type(AttrType type)
     case AttrType::BOOLEANS: return sizeof(int32_t);
     case AttrType::DATE: return sizeof(uint32_t);
     case AttrType::BIGINT: return sizeof(int64_t);
-    case AttrType::TEXT: return 4096;
+    case AttrType::TEXT: return 16;
     case AttrType::CHARS: return 4;
     default: return 4;
   }

@@ -129,6 +129,13 @@ RC Column::append_value(const Value &value)
     return RC::INTERNAL;
   }
 
+  if (attr_type_ == AttrType::TEXT) {
+    string_t s = add_text(value.data(), value.length());
+    memcpy(data_ + count_ * attr_len_, &s, sizeof(s));
+    count_ += 1;
+    return RC::SUCCESS;
+  }
+
   size_t total_bytes = std::min(value.length(), attr_len_);
   memcpy(data_ + count_ * attr_len_, value.data(), total_bytes);
   if (total_bytes < attr_len_)
