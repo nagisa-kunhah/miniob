@@ -46,7 +46,6 @@ TARGET_LINK_LIBRARIES(observer observer_static)
 ADD_LIBRARY(observer_static STATIC ${LIB_SRC})
 
 SET_TARGET_PROPERTIES(observer_static PROPERTIES OUTPUT_NAME observer)
-TARGET_INCLUDE_DIRECTORIES(observer_static PRIVATE ${PROJECT_SOURCE_DIR}/deps/3rd/csv-parser/single_include)
 TARGET_LINK_LIBRARIES(observer_static ${LIBRARIES} oblsm)
 
 # Target 必须在定义 ADD_EXECUTABLE 之后， programs 不受这个限制

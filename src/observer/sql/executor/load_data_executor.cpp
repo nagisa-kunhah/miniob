@@ -20,9 +20,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/load_data_stmt.h"
 #include "storage/common/chunk.h"
 
-#include "csv.hpp"
+#include "3rd/csv.hpp"
 
-using namespace common;
 
 RC LoadDataExecutor::execute(SQLStageEvent *sql_event)
 {
