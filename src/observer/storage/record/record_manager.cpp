@@ -447,6 +447,7 @@ RC PaxRecordPageHandler::insert_record(const char *data, RID *rid)
     char       *target   = get_field_data(index, i);
     memcpy(target, src, fild_len);
     data_idx += fild_len;
+    frame_->mark_dirty();
   }
 
   if (rid) {

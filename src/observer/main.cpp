@@ -17,6 +17,14 @@ See the Mulan PSL v2 for more details. */
 
 #include <netinet/in.h>
 #include <unistd.h>
+#ifdef ENABLE_GPROF
+#include <gmon.h>
+#include <cstdlib>
+extern "C" {
+extern char __executable_start;
+extern char etext;
+}
+#endif
 
 #include "common/ini_setting.h"
 #include "common/init.h"
@@ -186,6 +194,10 @@ int main(int argc, char **argv)
 
   cout << startup_tips;
 
+#ifdef ENABLE_GPROF
+  monstartup((u_long)&__executable_start, (u_long)&etext);
+#endif
+
   set_signal_handler(quit_signal_handle);
 
   parse_parameter(argc, argv);
@@ -203,6 +215,10 @@ int main(int argc, char **argv)
   LOG_INFO("Server stopped");
 
   cleanup();
+
+#ifdef ENABLE_GPROF
+  mcleanup();
+#endif
 
   delete g_server;
   return 0;

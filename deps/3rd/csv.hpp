@@ -7827,22 +7827,37 @@ namespace csv {
                 this->read_csv_worker = std::thread(&CSVReader::read_csv, this, internals::ITERATION_CHUNK_SIZE);
                 continue;
             }
-            else if (this->records->front().size() != this->n_cols &&
-                this->_format.variable_column_policy != VariableColumnPolicy::KEEP) {
-                auto errored_row = this->records->pop_front();
+	            else if (this->records->front().size() != this->n_cols &&
+	                this->_format.variable_column_policy != VariableColumnPolicy::KEEP) {
+	                // NOTE(miniob): MiniOB's LOAD DATA consumes rows by iterating fields (CSVRow iterator)
+	                // on the returned CSVRow. The stream-based CSVReader uses a background thread to parse
+	                // data and appends into shared RawCSVData / CSVFieldList structures while the
+	                // consumer thread reads them. That concurrent read/write can trigger data races and
+	                // ASan heap-use-after-free (e.g. while CSVFieldList::buffers grows).
+	                //
+	                // To ensure correctness, wait for the worker thread to finish parsing the current
+	                // chunk before we pop/format/return any row to the caller.
+	                if (this->read_csv_worker.joinable())
+	                    this->read_csv_worker.join();
+	                this->rethrow_read_csv_exception_if_any();
+	                auto errored_row = this->records->pop_front();
 
-                if (this->_format.variable_column_policy == VariableColumnPolicy::THROW) {
-                    if (errored_row.size() < this->n_cols)
-                        throw std::runtime_error("Line too short " + internals::format_row(errored_row));
+	                if (this->_format.variable_column_policy == VariableColumnPolicy::THROW) {
+                            if (errored_row.size() < this->n_cols)
+                                throw std::runtime_error("Line too short " + internals::format_row(errored_row));
 
-                    throw std::runtime_error("Line too long " + internals::format_row(errored_row));
-                }
-            }
-            else {
-                row = this->records->pop_front();
-                this->_n_rows++;
-                return true;
-            }
+                        throw std::runtime_error("Line too long " + internals::format_row(errored_row));
+                    }
+	            }
+	            else {
+	                // See NOTE(miniob) above.
+	                if (this->read_csv_worker.joinable())
+	                    this->read_csv_worker.join();
+	                this->rethrow_read_csv_exception_if_any();
+	                row = this->records->pop_front();
+	                this->_n_rows++;
+	                return true;
+	            }
         }
 
         return false;
