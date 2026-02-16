@@ -20,7 +20,18 @@ RC parse_date_yyyy_mm_dd(const string &data, uint32_t &packed)
 {
   string s = data;
   common::strip(s);
-  if (s.size() != 10 || s[4] != '-' || s[7] != '-') {
+  size_t first_dash  = s.find('-');
+  size_t second_dash = s.find('-', first_dash == string::npos ? string::npos : first_dash + 1);
+  if (first_dash == string::npos || second_dash == string::npos || second_dash <= first_dash + 1 ||
+      second_dash + 1 >= s.size()) {
+    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  }
+
+  string year_str  = s.substr(0, first_dash);
+  string month_str = s.substr(first_dash + 1, second_dash - first_dash - 1);
+  string day_str   = s.substr(second_dash + 1);
+
+  if (year_str.size() != 4 || month_str.empty() || day_str.empty() || month_str.size() > 2 || day_str.size() > 2) {
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   }
 
@@ -28,9 +39,9 @@ RC parse_date_yyyy_mm_dd(const string &data, uint32_t &packed)
   int month = 0;
   int day   = 0;
   try {
-    year  = stoi(s.substr(0, 4));
-    month = stoi(s.substr(5, 2));
-    day   = stoi(s.substr(8, 2));
+    year  = stoi(year_str);
+    month = stoi(month_str);
+    day   = stoi(day_str);
   } catch (...) {
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   }

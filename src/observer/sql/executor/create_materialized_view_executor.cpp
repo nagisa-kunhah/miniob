@@ -163,10 +163,16 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
 
   // 3) Create table for MV
   vector<string> empty_primary_keys;
+  StorageFormat storage_format = StorageFormat::ROW_FORMAT;
+  const auto &source_tables    = select_stmt->tables();
+  if (source_tables.size() == 1 && source_tables[0] != nullptr) {
+    storage_format = source_tables[0]->table_meta().storage_format();
+  }
+
   rc = db->create_table(view_name.c_str(),
       span<const AttrInfoSqlNode>(attr_infos.data(), attr_infos.size()),
       empty_primary_keys,
-      StorageFormat::ROW_FORMAT);
+      storage_format);
   if (OB_FAIL(rc)) {
     return rc;
   }

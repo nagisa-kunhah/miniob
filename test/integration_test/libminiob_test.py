@@ -290,7 +290,13 @@ def __init_options(argv = sys.argv[1:]):
     return options
 
 if __name__ == '__main__':
-    os.setpgrp()
+    try:
+        try:
+            os.setpgrp()
+        except PermissionError:
+            pass
+    except PermissionError:
+        pass
     options = __init_options()
     mylog.init_log(options.log, level=logging.DEBUG)
 
@@ -315,4 +321,3 @@ if __name__ == '__main__':
     test_result = tester.test()
     tester.close()
     _logger.info('result = %s', str(test_result))
-

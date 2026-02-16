@@ -67,6 +67,25 @@ RC FloatType::negative(const Value &val, Value &result) const
   return RC::SUCCESS;
 }
 
+RC FloatType::cast_to(const Value &val, AttrType type, Value &result) const
+{
+  switch (type) {
+    case AttrType::FLOATS: {
+      result.set_float(val.get_float());
+      return RC::SUCCESS;
+    }
+    case AttrType::INTS: {
+      result.set_int(static_cast<int>(val.get_float()));
+      return RC::SUCCESS;
+    }
+    case AttrType::BIGINT: {
+      result.set_bigint(static_cast<int64_t>(val.get_float()));
+      return RC::SUCCESS;
+    }
+    default: return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  }
+}
+
 RC FloatType::set_value_from_str(Value &val, const string &data) const
 {
   RC           rc = RC::SUCCESS;
