@@ -107,7 +107,7 @@ RC Column::append(const char *data, int count)
     return RC::INTERNAL;
   }
   if (count_ + count > capacity_) {
-    LOG_WARN("append data to full column");
+    // LOG_WARN("append data to full column");
     return RC::INTERNAL;
   }
   // Using a larger integer type to avoid overflow
@@ -125,7 +125,7 @@ RC Column::append_value(const Value &value)
     return RC::INTERNAL;
   }
   if (count_ >= capacity_) {
-    LOG_WARN("append data to full column");
+    // LOG_WARN("append data to full column");
     return RC::INTERNAL;
   }
 
