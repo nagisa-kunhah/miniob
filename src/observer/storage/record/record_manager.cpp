@@ -513,22 +513,10 @@ RC PaxRecordPageHandler::get_record(const RID &rid, Record &record)
 // TODO: specify the column_ids that chunk needed. currenly we get all columns
 RC PaxRecordPageHandler::get_chunk(Chunk &chunk)
 {
-  if (scan_page_num_ != get_page_num()) {
-    scan_page_num_ = get_page_num();
-    Bitmap bitmap(bitmap_, page_header_->record_capacity);
-    next_slot_num_ = bitmap.next_setted_bit(0);
-  }
-
-  if (next_slot_num_ == -1) {
-    return RC::RECORD_EOF;
-  }
-
-  const int col_num   = chunk.column_num();
-  const int row_cap   = chunk.capacity();
-  int       emit_rows = 0;
+  const int col_num = chunk.column_num();
   Bitmap    bitmap(bitmap_, page_header_->record_capacity);
 
-  for (int slot_idx = next_slot_num_; slot_idx != -1 && emit_rows < row_cap;
+  for (int slot_idx = bitmap.next_setted_bit(0); slot_idx != -1;
        slot_idx = bitmap.next_setted_bit(slot_idx + 1)) {
     for (int col_idx = 0; col_idx < col_num; col_idx++) {
       auto &column     = chunk.column(col_idx);
@@ -542,7 +530,10 @@ RC PaxRecordPageHandler::get_chunk(Chunk &chunk)
         const TextLobRef &ref = *reinterpret_cast<const TextLobRef *>(data);
         if (ref.length == 0) {
           string_t s("", 0);
-          column.append_one(reinterpret_cast<const char *>(&s));
+          RC rc = column.append_one(reinterpret_cast<const char *>(&s));
+          if (OB_FAIL(rc)) {
+            return rc;
+          }
         } else {
           string buf;
           buf.resize(static_cast<size_t>(ref.length));
@@ -552,17 +543,21 @@ RC PaxRecordPageHandler::get_chunk(Chunk &chunk)
             return rc;
           }
           string_t s = column.add_text(buf.data(), static_cast<int>(ref.length));
-          column.append_one(reinterpret_cast<const char *>(&s));
+          rc = column.append_one(reinterpret_cast<const char *>(&s));
+          if (OB_FAIL(rc)) {
+            return rc;
+          }
         }
       } else {
-        column.append_one(data);
+        RC rc = column.append_one(data);
+        if (OB_FAIL(rc)) {
+          return rc;
+        }
       }
     }
-    emit_rows++;
-    next_slot_num_ = bitmap.next_setted_bit(slot_idx + 1);
   }
 
-  return emit_rows > 0 ? RC::SUCCESS : RC::RECORD_EOF;
+  return RC::SUCCESS;
 }
 
 char *PaxRecordPageHandler::get_field_data(SlotNum slot_num, int col_id)
@@ -863,6 +858,7 @@ RC ChunkFileScanner::open_scan_chunk(
   log_handler_      = &log_handler;
   rw_mode_          = mode;
   current_page_num_ = BP_INVALID_PAGE_NUM;
+  page_iter_inited_ = false;
 
   RC rc = bp_iterator_.init(buffer_pool, 1);
   if (rc != RC::SUCCESS) {
@@ -895,17 +891,88 @@ RC ChunkFileScanner::next_chunk(Chunk &chunk)
         LOG_WARN("failed to init record page handler. page_num=%d, rc=%s", current_page_num_, strrc(rc));
         return rc;
       }
+      page_iterator_.init(record_page_handler_, 0);
+      page_iter_inited_ = true;
     }
 
-    rc = record_page_handler_->get_chunk(chunk);
-    if (rc == RC::SUCCESS) {
-      return rc;
-    } else if (rc == RC::RECORD_EOF) {
+    if (!page_iter_inited_) {
       current_page_num_ = BP_INVALID_PAGE_NUM;
       continue;
-    } else {
-      LOG_WARN("failed to get chunk from page. page_num=%d, rc=%s", current_page_num_, strrc(rc));
-      return rc;
+    }
+
+    int rows = 0;
+    Record record;
+    while (page_iterator_.has_next() && rows < chunk.capacity()) {
+      rc = page_iterator_.next(record);
+      if (OB_FAIL(rc)) {
+        return rc;
+      }
+
+      PaxRecordPageHandler *pax_handler = nullptr;
+      const int             field_num   = table_->table_meta().field_num();
+      if (field_num == 0) {
+        pax_handler = dynamic_cast<PaxRecordPageHandler *>(record_page_handler_);
+        if (pax_handler == nullptr) {
+          LOG_WARN("table meta is empty and page handler is not PAX");
+          return RC::INTERNAL;
+        }
+      }
+
+      for (int col_idx = 0; col_idx < chunk.column_num(); col_idx++) {
+        auto &column     = chunk.column(col_idx);
+        int   target_col = chunk.column_ids(col_idx);
+        const char      *data  = nullptr;
+        if (field_num > 0) {
+          const FieldMeta *field = table_->table_meta().field(target_col);
+          data = record.data() + field->offset();
+        } else {
+          data = pax_handler->get_field_data(record.rid().slot_num, target_col);
+        }
+        if (column.attr_type() == AttrType::TEXT) {
+          if (table_->lob_handler() == nullptr) {
+            LOG_WARN("lob handler is null while reading text column. page=%d", record.rid().page_num);
+            return RC::INTERNAL;
+          }
+          const TextLobRef &ref = *reinterpret_cast<const TextLobRef *>(data);
+          if (ref.length == 0) {
+            string_t s("", 0);
+            rc = column.append_one(reinterpret_cast<const char *>(&s));
+            if (OB_FAIL(rc)) {
+              return rc;
+            }
+          } else {
+            string buf;
+            buf.resize(static_cast<size_t>(ref.length));
+            rc = table_->lob_handler()->get_data(ref.offset, ref.length, buf.data());
+            if (OB_FAIL(rc)) {
+              LOG_WARN("failed to read text from lob. offset=%ld, len=%ld, rc=%s",
+                       ref.offset, ref.length, strrc(rc));
+              return rc;
+            }
+            string_t s = column.add_text(buf.data(), static_cast<int>(ref.length));
+            rc = column.append_one(reinterpret_cast<const char *>(&s));
+            if (OB_FAIL(rc)) {
+              return rc;
+            }
+          }
+        } else {
+          rc = column.append_one(data);
+          if (OB_FAIL(rc)) {
+            return rc;
+          }
+        }
+      }
+      rows++;
+    }
+
+    if (rows > 0) {
+      return RC::SUCCESS;
+    }
+
+    if (!page_iterator_.has_next()) {
+      page_iter_inited_ = false;
+      current_page_num_ = BP_INVALID_PAGE_NUM;
+      continue;
     }
   }
 
