@@ -358,6 +358,9 @@ private:
   int get_field_len(int col_id);
 
   RC set_record_data(SlotNum slot_num, Record &record);
+
+  PageNum scan_page_num_ = BP_INVALID_PAGE_NUM;
+  SlotNum next_slot_num_ = -1;
 };
 /**
  * @brief 管理整个文件中记录的增删改查
@@ -462,4 +465,5 @@ private:
 
   BufferPoolIterator bp_iterator_;                    ///< 遍历buffer pool的所有页面
   RecordPageHandler *record_page_handler_ = nullptr;  ///< 处理文件某页面的记录
+  PageNum           current_page_num_    = BP_INVALID_PAGE_NUM;
 };
