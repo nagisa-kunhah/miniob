@@ -67,8 +67,11 @@ RC PredicateVecPhysicalOperator::next(Chunk &chunk)
       }
     }
 
-    chunk.reference(filtered_chunk_);
-    return RC::SUCCESS;
+    if (filtered_chunk_.rows() > 0) {
+      chunk.reference(filtered_chunk_);
+      return RC::SUCCESS;
+    }
+    // All rows filtered out in this chunk, continue to next
   }
   return rc;
 }

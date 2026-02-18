@@ -392,6 +392,14 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
     session->destroy_trx();
   }
 
+  // Flush MV table data to disk so it survives a restart
+  if (rc == RC::SUCCESS) {
+    RC sync_rc = mv_table->sync();
+    if (OB_FAIL(sync_rc)) {
+      LOG_WARN("failed to sync mv table. rc=%s", strrc(sync_rc));
+    }
+  }
+
   LOG_INFO("create materialized view finished: name=%s rows=%ld rc=%s",
       view_name.c_str(),
       inserted_rows,

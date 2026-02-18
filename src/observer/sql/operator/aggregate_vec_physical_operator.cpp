@@ -51,7 +51,12 @@ RC AggregateVecPhysicalOperator::open(Trx *trx)
     return rc;
   }
 
+  int chunk_count     = 0;
+  int64_t total_rows  = 0;
   while (OB_SUCC(rc = child.next(chunk_))) {
+    int chunk_rows = chunk_.rows();
+    total_rows += chunk_rows;
+    LOG_TRACE("aggregate chunk[%d]: rows=%d total=%ld", chunk_count, chunk_rows, total_rows);
     for (size_t aggr_idx = 0; aggr_idx < aggregate_expressions_.size(); aggr_idx++) {
       Column column;
       rc = value_expressions_[aggr_idx]->get_column(chunk_, column);
@@ -68,11 +73,13 @@ RC AggregateVecPhysicalOperator::open(Trx *trx)
         return rc;
       }
     }
+    chunk_count++;
   }
 
   if (rc == RC::RECORD_EOF) {
     rc = RC::SUCCESS;
   }
+  LOG_INFO("aggregate finished: chunks=%d total_rows=%ld rc=%s", chunk_count, total_rows, strrc(rc));
 
   return rc;
 }

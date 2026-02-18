@@ -474,6 +474,9 @@ RC ArithmeticExpr::execute_calc(
       } else if (attr_type == AttrType::FLOATS) {
         binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, float, AddOperator>(
             (float *)left.data(), (float *)right.data(), (float *)result.data(), result.capacity());
+      } else if (attr_type == AttrType::BIGINT) {
+        binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, int64_t, AddOperator>(
+            (int64_t *)left.data(), (int64_t *)right.data(), (int64_t *)result.data(), result.capacity());
       } else {
         rc = RC::UNIMPLEMENTED;
       }
@@ -485,6 +488,9 @@ RC ArithmeticExpr::execute_calc(
       } else if (attr_type == AttrType::FLOATS) {
         binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, float, SubtractOperator>(
             (float *)left.data(), (float *)right.data(), (float *)result.data(), result.capacity());
+      } else if (attr_type == AttrType::BIGINT) {
+        binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, int64_t, SubtractOperator>(
+            (int64_t *)left.data(), (int64_t *)right.data(), (int64_t *)result.data(), result.capacity());
       } else {
         rc = RC::UNIMPLEMENTED;
       }
@@ -496,6 +502,9 @@ RC ArithmeticExpr::execute_calc(
       } else if (attr_type == AttrType::FLOATS) {
         binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, float, MultiplyOperator>(
             (float *)left.data(), (float *)right.data(), (float *)result.data(), result.capacity());
+      } else if (attr_type == AttrType::BIGINT) {
+        binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, int64_t, MultiplyOperator>(
+            (int64_t *)left.data(), (int64_t *)right.data(), (int64_t *)result.data(), result.capacity());
       } else {
         rc = RC::UNIMPLEMENTED;
       }
@@ -507,6 +516,9 @@ RC ArithmeticExpr::execute_calc(
       } else if (attr_type == AttrType::FLOATS) {
         binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, float, DivideOperator>(
             (float *)left.data(), (float *)right.data(), (float *)result.data(), result.capacity());
+      } else if (attr_type == AttrType::BIGINT) {
+        binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, int64_t, DivideOperator>(
+            (int64_t *)left.data(), (int64_t *)right.data(), (int64_t *)result.data(), result.capacity());
       } else {
         rc = RC::UNIMPLEMENTED;
       }
@@ -517,6 +529,9 @@ RC ArithmeticExpr::execute_calc(
       } else if (attr_type == AttrType::FLOATS) {
         unary_operator<LEFT_CONSTANT, float, NegateOperator>(
             (float *)left.data(), (float *)result.data(), result.capacity());
+      } else if (attr_type == AttrType::BIGINT) {
+        unary_operator<LEFT_CONSTANT, int64_t, NegateOperator>(
+            (int64_t *)left.data(), (int64_t *)result.data(), result.capacity());
       } else {
         rc = RC::UNIMPLEMENTED;
       }
