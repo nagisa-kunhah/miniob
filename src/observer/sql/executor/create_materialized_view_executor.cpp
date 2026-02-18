@@ -252,11 +252,18 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
   }
 
   // 4) Build physical plan for select and insert results into MV table
+  //    Force tuple mode for MV creation to avoid vec/chunk path issues.
+  ExecutionMode saved_mode = session->get_execution_mode();
+  session->set_execution_mode(ExecutionMode::TUPLE_ITERATOR);
+
   SQLStageEvent tmp_event(sql_event->session_event(), "");
   tmp_event.set_stmt(select_stmt.release());  // ownership moved to tmp_event
 
   OptimizeStage optimize_stage;
   rc = optimize_stage.handle_request(&tmp_event);
+
+  session->set_execution_mode(saved_mode);
+
   if (OB_FAIL(rc)) {
     return rc;
   }

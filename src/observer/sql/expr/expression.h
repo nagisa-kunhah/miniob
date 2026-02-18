@@ -239,6 +239,7 @@ public:
 
   RC get_value(const Tuple &tuple, Value &value) const override;
   RC get_column(Chunk &chunk, Column &column) override;
+  RC eval(Chunk &chunk, std::vector<uint8_t> &select) override;
   RC try_get_value(Value &value) const override
   {
     value = value_;

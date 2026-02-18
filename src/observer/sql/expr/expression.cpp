@@ -71,6 +71,17 @@ RC ValueExpr::get_column(Chunk &chunk, Column &column)
   return RC::SUCCESS;
 }
 
+RC ValueExpr::eval(Chunk &chunk, std::vector<uint8_t> &select)
+{
+  // When used as a predicate (e.g. ValueExpr(true) after predicate pushdown),
+  // a true value keeps all rows, a false value filters all rows.
+  bool val = value_.get_boolean();
+  if (!val) {
+    std::fill(select.begin(), select.end(), 0);
+  }
+  return RC::SUCCESS;
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 CastExpr::CastExpr(unique_ptr<Expression> child, AttrType cast_type) : child_(std::move(child)), cast_type_(cast_type)
 {}
