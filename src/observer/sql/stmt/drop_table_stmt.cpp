@@ -25,7 +25,7 @@ RC DropTableStmt::create(Db *db, const DropTableSqlNode &drop_table, Stmt *&stmt
     return RC::INVALID_ARGUMENT;
   }
 
-  if (db->find_table(table_name) == nullptr) {
+  if (db->find_table(table_name) == nullptr && !drop_table.if_exists) {
     LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
