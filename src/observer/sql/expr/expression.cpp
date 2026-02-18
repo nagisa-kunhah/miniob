@@ -352,6 +352,44 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
   return rc;
 }
 
+RC ConjunctionExpr::eval(Chunk &chunk, vector<uint8_t> &select)
+{
+  if (children_.empty()) {
+    return RC::SUCCESS;
+  }
+
+  RC rc = RC::SUCCESS;
+  if (conjunction_type_ == Type::AND) {
+    // AND: evaluate each child; each child further zeroes out select bits
+    for (auto &child : children_) {
+      rc = child->eval(chunk, select);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("conjunction AND child eval failed. rc=%s", strrc(rc));
+        return rc;
+      }
+    }
+  } else {
+    // OR: start with all-zero, union the results from each child
+    vector<uint8_t> result(select.size(), 0);
+    for (auto &child : children_) {
+      vector<uint8_t> child_select(select);  // copy current select
+      rc = child->eval(chunk, child_select);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("conjunction OR child eval failed. rc=%s", strrc(rc));
+        return rc;
+      }
+      for (size_t i = 0; i < result.size(); i++) {
+        result[i] |= child_select[i];
+      }
+    }
+    // Intersect with incoming select
+    for (size_t i = 0; i < select.size(); i++) {
+      select[i] = select[i] & result[i];
+    }
+  }
+  return rc;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, Expression *left, Expression *right)

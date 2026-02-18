@@ -54,7 +54,11 @@ RC AggregateVecPhysicalOperator::open(Trx *trx)
   while (OB_SUCC(rc = child.next(chunk_))) {
     for (size_t aggr_idx = 0; aggr_idx < aggregate_expressions_.size(); aggr_idx++) {
       Column column;
-      value_expressions_[aggr_idx]->get_column(chunk_, column);
+      rc = value_expressions_[aggr_idx]->get_column(chunk_, column);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("aggregate get_column failed at aggr_idx=%zu rc=%s", aggr_idx, strrc(rc));
+        return rc;
+      }
       ASSERT(aggregate_expressions_[aggr_idx]->type() == ExprType::AGGREGATION, "expect aggregate expression");
       auto *aggregate_expr = static_cast<AggregateExpr *>(aggregate_expressions_[aggr_idx]);
       rc                   = aggregate_state_update_by_column(

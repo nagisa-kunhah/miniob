@@ -252,17 +252,11 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
   }
 
   // 4) Build physical plan for select and insert results into MV table
-  //    Force tuple mode for MV creation to avoid vec/chunk path issues.
-  ExecutionMode saved_mode = session->get_execution_mode();
-  session->set_execution_mode(ExecutionMode::TUPLE_ITERATOR);
-
   SQLStageEvent tmp_event(sql_event->session_event(), "");
   tmp_event.set_stmt(select_stmt.release());  // ownership moved to tmp_event
 
   OptimizeStage optimize_stage;
   rc = optimize_stage.handle_request(&tmp_event);
-
-  session->set_execution_mode(saved_mode);
 
   if (OB_FAIL(rc)) {
     return rc;
@@ -272,9 +266,10 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
   if (oper == nullptr) {
     return RC::INTERNAL;
   }
-  LOG_INFO("mv physical plan: used_chunk_mode=%d root=%s",
+  LOG_INFO("mv physical plan: used_chunk_mode=%d root=%s exec_mode=%s",
       session->used_chunk_mode(),
-      oper->name().c_str());
+      oper->name().c_str(),
+      execution_mode_name(session->get_execution_mode()));
 
   Trx *trx = session->current_trx();
   trx->start_if_need();
@@ -288,6 +283,7 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
   int64_t inserted_rows = 0;
   if (session->used_chunk_mode()) {
     Chunk chunk;
+    int   chunk_idx = 0;
     while (true) {
       rc = oper->next(chunk);
       if (rc == RC::RECORD_EOF) {
@@ -295,18 +291,22 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
         break;
       }
       if (OB_FAIL(rc)) {
+        LOG_WARN("mv chunk next failed at chunk_idx=%d inserted_rows=%ld rc=%s",
+            chunk_idx, inserted_rows, strrc(rc));
         break;
       }
 
-      if (chunk.column_num() != expected_columns) {
+      const int col_num = chunk.column_num();
+      const int rows    = chunk.rows();
+      LOG_TRACE("mv chunk[%d]: cols=%d rows=%d", chunk_idx, col_num, rows);
+
+      if (col_num < expected_columns) {
         LOG_WARN("mv insert chunk column mismatch: expected=%d got=%d",
-            expected_columns,
-            chunk.column_num());
+            expected_columns, col_num);
         rc = RC::INTERNAL;
         break;
       }
 
-      const int     rows = chunk.rows();
       vector<Value> values;
       values.resize(expected_columns);
       for (int r = 0; r < rows && OB_SUCC(rc); r++) {
@@ -316,11 +316,14 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
         rc = insert_one_row(mv_table, trx, values);
         if (OB_SUCC(rc)) {
           inserted_rows++;
+        } else {
+          LOG_WARN("mv insert failed at row %ld rc=%s", inserted_rows, strrc(rc));
         }
       }
       if (OB_FAIL(rc)) {
         break;
       }
+      chunk_idx++;
     }
   } else {
     while (true) {
@@ -330,18 +333,19 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
         break;
       }
       if (OB_FAIL(rc)) {
+        LOG_WARN("mv tuple next failed at row %ld rc=%s", inserted_rows, strrc(rc));
         break;
       }
 
       Tuple *tuple = oper->current_tuple();
       if (tuple == nullptr) {
+        LOG_WARN("mv tuple is null at row %ld", inserted_rows);
         rc = RC::INTERNAL;
         break;
       }
-      if (tuple->cell_num() != expected_columns) {
-        LOG_WARN("mv insert tuple column mismatch: expected=%d got=%d",
-            expected_columns,
-            tuple->cell_num());
+      if (tuple->cell_num() < expected_columns) {
+        LOG_WARN("mv insert tuple column mismatch: expected=%d got=%d at row %ld",
+            expected_columns, tuple->cell_num(), inserted_rows);
         rc = RC::INTERNAL;
         break;
       }
@@ -351,6 +355,7 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
       for (int i = 0; i < expected_columns; i++) {
         rc = tuple->cell_at(i, values[i]);
         if (OB_FAIL(rc)) {
+          LOG_WARN("mv cell_at(%d) failed at row %ld rc=%s", i, inserted_rows, strrc(rc));
           break;
         }
       }
@@ -360,6 +365,7 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
 
       rc = insert_one_row(mv_table, trx, values);
       if (OB_FAIL(rc)) {
+        LOG_WARN("mv insert failed at row %ld rc=%s", inserted_rows, strrc(rc));
         break;
       }
       inserted_rows++;
