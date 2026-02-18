@@ -195,6 +195,7 @@ struct CreateMaterializedViewSqlNode
 struct DropTableSqlNode
 {
   string relation_name;  ///< 要删除的表名
+  bool   if_exists = false;
 };
 
 /**

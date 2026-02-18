@@ -129,6 +129,8 @@ STORAGE                                 RETURN_TOKEN(STORAGE);
 FORMAT                                  RETURN_TOKEN(FORMAT);
 MATERIALIZED                            RETURN_TOKEN(MATERIALIZED);
 VIEW                                    RETURN_TOKEN(VIEW);
+IF                                      RETURN_TOKEN(IF);
+EXISTS                                  RETURN_TOKEN(EXISTS);
 PRIMARY                                 RETURN_TOKEN(PRIMARY);
 KEY                                     RETURN_TOKEN(KEY);
 ANALYZE                                 RETURN_TOKEN(ANALYZE);

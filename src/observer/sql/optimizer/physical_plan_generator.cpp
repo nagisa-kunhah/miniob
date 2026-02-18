@@ -32,6 +32,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/nested_loop_join_physical_operator.h"
 #include "sql/operator/predicate_logical_operator.h"
 #include "sql/operator/predicate_physical_operator.h"
+#include "sql/operator/predicate_vec_physical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/project_physical_operator.h"
 #include "sql/operator/project_vec_physical_operator.h"
@@ -166,6 +167,9 @@ RC PhysicalPlanGenerator::create_vec(
     } break;
     case LogicalOperatorType::PROJECTION: {
       return create_vec_plan(static_cast<ProjectLogicalOperator &>(logical_operator), oper, session);
+    } break;
+    case LogicalOperatorType::PREDICATE: {
+      return create_vec_plan(static_cast<PredicateLogicalOperator &>(logical_operator), oper, session);
     } break;
     case LogicalOperatorType::GROUP_BY: {
       return create_vec_plan(static_cast<GroupByLogicalOperator &>(logical_operator), oper, session);
@@ -458,6 +462,33 @@ RC PhysicalPlanGenerator::create_vec_plan(
   oper = unique_ptr<PhysicalOperator>(table_scan_oper);
   LOG_TRACE("use vectorized table scan");
 
+  return RC::SUCCESS;
+}
+
+RC PhysicalPlanGenerator::create_vec_plan(
+    PredicateLogicalOperator &logical_oper, unique_ptr<PhysicalOperator> &oper, Session *session)
+{
+  vector<unique_ptr<Expression>> &expressions = logical_oper.expressions();
+  if (expressions.size() != 1) {
+    LOG_WARN("predicate logical operator should have 1 expression. got=%d", expressions.size());
+    return RC::INVALID_ARGUMENT;
+  }
+
+  unique_ptr<PhysicalOperator> child_phy_oper;
+  if (!logical_oper.children().empty()) {
+    LogicalOperator &child_oper = *logical_oper.children().front();
+    RC rc = create_vec(child_oper, child_phy_oper, session);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to create child physical operator of predicate(vec) operator. rc=%s", strrc(rc));
+      return rc;
+    }
+  }
+
+  auto predicate_oper = make_unique<PredicateVecPhysicalOperator>(std::move(expressions.front()));
+  if (child_phy_oper != nullptr) {
+    predicate_oper->add_child(std::move(child_phy_oper));
+  }
+  oper = std::move(predicate_oper);
   return RC::SUCCESS;
 }
 

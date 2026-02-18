@@ -68,6 +68,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         CREATE
         MATERIALIZED
         VIEW
+        IF
+        EXISTS
         AS
         DROP
         GROUP
@@ -205,6 +207,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <sql_node>            create_table_stmt
 %type <sql_node>            create_materialized_view_stmt
 %type <sql_node>            drop_table_stmt
+%type <sql_node>            drop_materialized_view_stmt
 %type <sql_node>            analyze_table_stmt
 %type <sql_node>            show_tables_stmt
 %type <sql_node>            desc_table_stmt
@@ -244,6 +247,7 @@ command_wrapper:
   | create_table_stmt
   | create_materialized_view_stmt
   | drop_table_stmt
+  | drop_materialized_view_stmt
   | analyze_table_stmt
   | show_tables_stmt
   | desc_table_stmt
@@ -299,7 +303,26 @@ drop_table_stmt:    /*drop table 语句的语法解析树*/
     DROP TABLE ID {
       $$ = new ParsedSqlNode(SCF_DROP_TABLE);
       $$->drop_table.relation_name = $3;
+      $$->drop_table.if_exists     = false;
+    }
+    | DROP TABLE IF EXISTS ID {
+      $$ = new ParsedSqlNode(SCF_DROP_TABLE);
+      $$->drop_table.relation_name = $5;
+      $$->drop_table.if_exists     = true;
     };
+
+drop_materialized_view_stmt: /* drop materialized view 语句的语法解析树 */
+    DROP MATERIALIZED VIEW ID {
+      $$ = new ParsedSqlNode(SCF_DROP_TABLE);
+      $$->drop_table.relation_name = $4;
+      $$->drop_table.if_exists     = false;
+    }
+    | DROP MATERIALIZED VIEW IF EXISTS ID {
+      $$ = new ParsedSqlNode(SCF_DROP_TABLE);
+      $$->drop_table.relation_name = $6;
+      $$->drop_table.if_exists     = true;
+    }
+    ;
 
 analyze_table_stmt:  /* analyze table 语法的语法解析树*/
     ANALYZE TABLE ID {

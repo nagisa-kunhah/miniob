@@ -30,6 +30,6 @@ RC DropTableStmt::create(Db *db, const DropTableSqlNode &drop_table, Stmt *&stmt
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
-  stmt = new DropTableStmt(table_name);
+  stmt = new DropTableStmt(table_name, drop_table.if_exists);
   return RC::SUCCESS;
 }

@@ -23,6 +23,7 @@ string physical_operator_type_name(PhysicalOperatorType type)
     case PhysicalOperatorType::HASH_JOIN: return "HASH_JOIN";
     case PhysicalOperatorType::EXPLAIN: return "EXPLAIN";
     case PhysicalOperatorType::PREDICATE: return "PREDICATE";
+    case PhysicalOperatorType::PREDICATE_VEC: return "PREDICATE_VEC";
     case PhysicalOperatorType::INSERT: return "INSERT";
     case PhysicalOperatorType::DELETE: return "DELETE";
     case PhysicalOperatorType::PROJECT: return "PROJECT";

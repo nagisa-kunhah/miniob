@@ -30,5 +30,9 @@ RC DropTableExecutor::execute(SQLStageEvent *sql_event)
   DropTableStmt *drop_table_stmt = static_cast<DropTableStmt *>(stmt);
   const string  &table_name      = drop_table_stmt->table_name();
 
-  return session->get_current_db()->drop_table(table_name.c_str());
+  RC rc = session->get_current_db()->drop_table(table_name.c_str());
+  if (rc == RC::SCHEMA_TABLE_NOT_EXIST && drop_table_stmt->if_exists()) {
+    return RC::SUCCESS;
+  }
+  return rc;
 }
