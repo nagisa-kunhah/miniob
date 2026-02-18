@@ -216,6 +216,14 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
     storage_format = source_tables[0]->table_meta().storage_format();
   }
 
+  // Overwrite semantics: drop existing MV (table) with the same name.
+  if (db->find_table(view_name.c_str()) != nullptr) {
+    rc = db->drop_table(view_name.c_str());
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+  }
+
   LOG_INFO("create materialized view: name=%s storage_format=%s",
       view_name.c_str(),
       storage_format_name(storage_format));
