@@ -396,6 +396,8 @@ create_materialized_view_stmt:
         create_mv.selection.relations.swap($6->selection.relations);
         create_mv.selection.conditions.swap($6->selection.conditions);
         create_mv.selection.group_by.swap($6->selection.group_by);
+        create_mv.selection.order_by.swap($6->selection.order_by);
+        create_mv.selection.limit = $6->selection.limit;
         delete $6;
       }
     }
