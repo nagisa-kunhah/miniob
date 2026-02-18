@@ -169,11 +169,20 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
     storage_format = source_tables[0]->table_meta().storage_format();
   }
 
+  LOG_INFO("create materialized view: name=%s storage_format=%s",
+      view_name.c_str(),
+      storage_format == StorageFormat::PAX_FORMAT ? "pax" : "row");
+
   rc = db->create_table(view_name.c_str(),
       span<const AttrInfoSqlNode>(attr_infos.data(), attr_infos.size()),
       empty_primary_keys,
       storage_format);
   if (OB_FAIL(rc)) {
+    if (rc == RC::SCHEMA_TABLE_EXIST) {
+      LOG_WARN("create materialized view failed: %s already exists", view_name.c_str());
+    } else {
+      LOG_WARN("create materialized view failed: %s rc=%s", view_name.c_str(), strrc(rc));
+    }
     return rc;
   }
 
