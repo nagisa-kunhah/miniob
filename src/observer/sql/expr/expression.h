@@ -239,6 +239,7 @@ public:
 
   RC get_value(const Tuple &tuple, Value &value) const override;
   RC get_column(Chunk &chunk, Column &column) override;
+  RC eval(Chunk &chunk, std::vector<uint8_t> &select) override;
   RC try_get_value(Value &value) const override
   {
     value = value_;
@@ -368,6 +369,7 @@ public:
   ExprType type() const override { return ExprType::CONJUNCTION; }
   AttrType value_type() const override { return AttrType::BOOLEANS; }
   RC       get_value(const Tuple &tuple, Value &value) const override;
+  RC       eval(Chunk &chunk, vector<uint8_t> &select) override;
 
   Type conjunction_type() const { return conjunction_type_; }
 

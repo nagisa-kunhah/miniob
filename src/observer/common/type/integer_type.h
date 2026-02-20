@@ -36,6 +36,8 @@ public:
   {
     if (type == AttrType::INTS) {
       return 0;
+    } else if (type == AttrType::BIGINT) {
+      return 1;
     } else if (type == AttrType::FLOATS) {
       return 1;
     }

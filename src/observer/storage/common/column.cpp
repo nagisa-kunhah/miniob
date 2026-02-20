@@ -107,7 +107,7 @@ RC Column::append(const char *data, int count)
     return RC::INTERNAL;
   }
   if (count_ + count > capacity_) {
-    LOG_WARN("append data to full column");
+    // LOG_WARN("append data to full column");
     return RC::INTERNAL;
   }
   // Using a larger integer type to avoid overflow
@@ -125,8 +125,15 @@ RC Column::append_value(const Value &value)
     return RC::INTERNAL;
   }
   if (count_ >= capacity_) {
-    LOG_WARN("append data to full column");
+    // LOG_WARN("append data to full column");
     return RC::INTERNAL;
+  }
+
+  if (attr_type_ == AttrType::TEXT) {
+    string_t s = add_text(value.data(), value.length());
+    memcpy(data_ + count_ * attr_len_, &s, sizeof(s));
+    count_ += 1;
+    return RC::SUCCESS;
   }
 
   size_t total_bytes = std::min(value.length(), attr_len_);

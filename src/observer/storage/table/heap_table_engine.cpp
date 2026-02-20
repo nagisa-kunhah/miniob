@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "storage/table/heap_table_engine.h"
+#include <string.h>
 #include "storage/record/heap_record_scanner.h"
 #include "common/log/log.h"
 #include "storage/index/bplus_tree_index.h"
@@ -100,6 +101,72 @@ RC HeapTableEngine::delete_record(const Record &record)
   }
   rc = record_handler_->delete_record(&record.rid());
   return rc;
+}
+
+RC HeapTableEngine::update_record_with_trx(const Record &old_record, const Record &new_record, Trx *trx)
+{
+  RC rc = RC::SUCCESS;
+  const RID &rid = old_record.rid();
+
+  // Determine which indexes are affected by the update
+  vector<Index *> changed_indexes;
+  for (Index *index : indexes_) {
+    const IndexMeta &index_meta = index->index_meta();
+    const FieldMeta *field_meta = table_meta_->field(index_meta.field());
+    if (field_meta == nullptr) {
+      continue;
+    }
+    const char *old_data = old_record.data() + field_meta->offset();
+    const char *new_data = new_record.data() + field_meta->offset();
+    if (memcmp(old_data, new_data, field_meta->len()) != 0) {
+      changed_indexes.push_back(index);
+    }
+  }
+
+  for (Index *index : changed_indexes) {
+    rc = index->delete_entry(old_record.data(), &rid);
+    if (rc != RC::SUCCESS && rc != RC::RECORD_INVALID_KEY) {
+      LOG_WARN("failed to delete index entry before update. table=%s, index=%s, rc=%s",
+          table_meta_->name(),
+          index->index_meta().name(),
+          strrc(rc));
+      return rc;
+    }
+  }
+
+  rc = record_handler_->visit_record(rid, [&](Record &record) -> bool {
+    memcpy(record.data(), new_record.data(), new_record.len());
+    return true;
+  });
+  if (rc != RC::SUCCESS) {
+    // best effort rollback index entries
+    for (Index *index : changed_indexes) {
+      index->insert_entry(old_record.data(), &rid);
+    }
+    return rc;
+  }
+
+  for (Index *index : changed_indexes) {
+    rc = index->insert_entry(new_record.data(), &rid);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to insert index entry after update. table=%s, index=%s, rc=%s",
+          table_meta_->name(),
+          index->index_meta().name(),
+          strrc(rc));
+      // rollback: revert record and index entries (best effort)
+      record_handler_->visit_record(rid, [&](Record &record) -> bool {
+        memcpy(record.data(), old_record.data(), old_record.len());
+        return true;
+      });
+      for (Index *rollback_index : changed_indexes) {
+        rollback_index->delete_entry(new_record.data(), &rid);
+        rollback_index->insert_entry(old_record.data(), &rid);
+      }
+      return rc;
+    }
+  }
+
+  return RC::SUCCESS;
 }
 
 RC HeapTableEngine::get_record_scanner(RecordScanner *&scanner, Trx *trx, ReadWriteMode mode)

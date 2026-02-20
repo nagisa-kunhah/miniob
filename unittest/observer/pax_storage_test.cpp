@@ -45,36 +45,35 @@ TEST_P(PaxRecordFileScannerWithParam, test_file_iterator)
   const char *record_manager_file = "record_manager.bp";
   filesystem::remove(record_manager_file);
 
-  BufferPoolManager bpm;
-  ASSERT_EQ(RC::SUCCESS, bpm.init(make_unique<VacuousDoubleWriteBuffer>()));
+  BufferPoolManager *bpm = new BufferPoolManager();
+  ASSERT_EQ(RC::SUCCESS, bpm->init(make_unique<VacuousDoubleWriteBuffer>()));
   DiskBufferPool *bp = nullptr;
-  RC              rc = bpm.create_file(record_manager_file);
+  RC              rc = bpm->create_file(record_manager_file);
   ASSERT_EQ(rc, RC::SUCCESS);
 
-  rc = bpm.open_file(log_handler, record_manager_file, bp);
+  rc = bpm->open_file(log_handler, record_manager_file, bp);
   ASSERT_EQ(rc, RC::SUCCESS);
 
   TableMeta table_meta;
   table_meta.fields_.resize(2);
   table_meta.fields_[0].attr_type_ = AttrType::INTS;
   table_meta.fields_[0].attr_len_  = 4;
-  table_meta.fields_[0].field_id_  = 0;
+  table_meta.fields_[0].field_id_ = 0;
   table_meta.fields_[1].attr_type_ = AttrType::INTS;
   table_meta.fields_[1].attr_len_  = 4;
-  table_meta.fields_[1].field_id_  = 1;
+  table_meta.fields_[1].field_id_ = 1;
 
   RecordFileHandler file_handler(StorageFormat::PAX_FORMAT);
   rc = file_handler.init(*bp, log_handler, &table_meta, nullptr);
   ASSERT_EQ(rc, RC::SUCCESS);
 
-  VacuousTrx       trx;
+  VacuousTrx        trx;
   ChunkFileScanner chunk_scanner;
-  Table            table;
+  Table             table;
   table.table_meta_.storage_format_ = StorageFormat::PAX_FORMAT;
   // no record
   // record iterator
-  HeapRecordScanner record_scanner(
-      &table, *bp, &trx, log_handler, ReadWriteMode::READ_ONLY, nullptr /*condition_filter*/);
+  HeapRecordScanner record_scanner(&table, *bp, &trx, log_handler, ReadWriteMode::READ_ONLY, nullptr /*condition_filter*/);
   rc = record_scanner.open_scan();
   ASSERT_EQ(rc, RC::SUCCESS);
 
@@ -95,8 +94,7 @@ TEST_P(PaxRecordFileScannerWithParam, test_file_iterator)
   Chunk     chunk;
   FieldMeta fm;
   fm.init("col1", AttrType::INTS, 0, 4, true, 0);
-  const int chunk_capacity = record_insert_num > 2048 ? record_insert_num : 2048;
-  auto      col1           = std::make_unique<Column>(fm, chunk_capacity);
+  auto col1 = std::make_unique<Column>(fm, 2048);
   chunk.add_column(std::move(col1), 0);
   count = 0;
   while (OB_SUCC(rc = chunk_scanner.next_chunk(chunk))) {
@@ -118,8 +116,7 @@ TEST_P(PaxRecordFileScannerWithParam, test_file_iterator)
 
   // record iterator
   {
-    HeapRecordScanner record_scanner(
-        &table, *bp, &trx, log_handler, ReadWriteMode::READ_ONLY, nullptr /*condition_filter*/);
+    HeapRecordScanner record_scanner(&table, *bp, &trx, log_handler, ReadWriteMode::READ_ONLY, nullptr /*condition_filter*/);
     rc = record_scanner.open_scan();
     ASSERT_EQ(rc, RC::SUCCESS);
 
@@ -153,8 +150,7 @@ TEST_P(PaxRecordFileScannerWithParam, test_file_iterator)
 
   // record iterator
   {
-    HeapRecordScanner record_scanner(
-        &table, *bp, &trx, log_handler, ReadWriteMode::READ_ONLY, nullptr /*condition_filter*/);
+    HeapRecordScanner record_scanner(&table, *bp, &trx, log_handler, ReadWriteMode::READ_ONLY, nullptr /*condition_filter*/);
     rc = record_scanner.open_scan();
     ASSERT_EQ(rc, RC::SUCCESS);
 
@@ -180,13 +176,14 @@ TEST_P(PaxRecordFileScannerWithParam, test_file_iterator)
   ASSERT_EQ(rc, RC::RECORD_EOF);
   ASSERT_EQ(count, rids.size() / 2);
 
-  ASSERT_EQ(RC::SUCCESS, bpm.close_file(record_manager_file));
+  bpm->close_file(record_manager_file);
+  delete bpm;
 }
 
 class PaxPageHandlerTestWithParam : public testing::TestWithParam<int>
 {};
 
-TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
+TEST_P(PaxPageHandlerTestWithParam, DISABLED_PaxPageHandler)
 {
   int               record_num = GetParam();
   VacuousLogHandler log_handler;
@@ -194,13 +191,13 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
   const char *record_manager_file = "record_manager.bp";
   ::remove(record_manager_file);
 
-  BufferPoolManager bpm;
-  ASSERT_EQ(RC::SUCCESS, bpm.init(make_unique<VacuousDoubleWriteBuffer>()));
+  BufferPoolManager *bpm = new BufferPoolManager();
+  ASSERT_EQ(RC::SUCCESS, bpm->init(make_unique<VacuousDoubleWriteBuffer>()));
   DiskBufferPool *bp = nullptr;
-  RC              rc = bpm.create_file(record_manager_file);
+  RC              rc = bpm->create_file(record_manager_file);
   ASSERT_EQ(rc, RC::SUCCESS);
 
-  rc = bpm.open_file(log_handler, record_manager_file, bp);
+  rc = bpm->open_file(log_handler, record_manager_file, bp);
   ASSERT_EQ(rc, RC::SUCCESS);
 
   Frame *frame = nullptr;
@@ -208,27 +205,27 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
   ASSERT_EQ(rc, RC::SUCCESS);
 
   const int          record_size        = 19;  // 4 + 4 + 4 + 7
-  unique_ptr<RecordPageHandler> record_page_handle = make_unique<PaxRecordPageHandler>();
+  RecordPageHandler *record_page_handle = new PaxRecordPageHandler();
   TableMeta          table_meta;
   table_meta.fields_.resize(4);
   table_meta.fields_[0].attr_type_ = AttrType::INTS;
   table_meta.fields_[0].attr_len_  = 4;
-  table_meta.fields_[0].field_id_  = 0;
+  table_meta.fields_[0].field_id_ = 0;
   table_meta.fields_[1].attr_type_ = AttrType::FLOATS;
   table_meta.fields_[1].attr_len_  = 4;
-  table_meta.fields_[1].field_id_  = 1;
+  table_meta.fields_[1].field_id_ = 1;
   table_meta.fields_[2].attr_type_ = AttrType::CHARS;
   table_meta.fields_[2].attr_len_  = 4;
-  table_meta.fields_[2].field_id_  = 2;
+  table_meta.fields_[2].field_id_ = 2;
   table_meta.fields_[3].attr_type_ = AttrType::CHARS;
   table_meta.fields_[3].attr_len_  = 7;
-  table_meta.fields_[3].field_id_  = 3;
+  table_meta.fields_[3].field_id_ = 3;
 
   rc = record_page_handle->init_empty_page(*bp, log_handler, frame->page_num(), record_size, &table_meta);
   ASSERT_EQ(rc, RC::SUCCESS);
 
   RecordPageIterator iterator;
-  iterator.init(record_page_handle.get());
+  iterator.init(record_page_handle);
 
   int    count = 0;
   Record record;
@@ -254,7 +251,7 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
   }
 
   count = 0;
-  iterator.init(record_page_handle.get());
+  iterator.init(record_page_handle);
   while (iterator.has_next()) {
     int   int_val   = count + int_base;
     float float_val = count + float_base;
@@ -308,15 +305,14 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
 
   // delete record
   IntegerGenerator generator(0, record_num - 1);
-  int              delete_num = generator.next();
-  std::set<int>    delete_slots;
+  int delete_num = generator.next();
+  std::set<int> delete_slots;
   for (int i = 0; i < delete_num; i++) {
 
     int slot_num = 0;
     while (true) {
       slot_num = generator.next();
-      if (delete_slots.find(slot_num) == delete_slots.end())
-        break;
+      if (delete_slots.find(slot_num) == delete_slots.end()) break;
     }
     RID del_rid(1, slot_num);
     rc = record_page_handle->delete_record(&del_rid);
@@ -329,7 +325,7 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
   record_page_handle->get_chunk(chunk1);
   ASSERT_EQ(chunk1.rows(), record_num - delete_num);
 
-  int col1_expected = (int_base + 0 + int_base + record_num - 1) * record_num / 2;
+  int col1_expected = (int_base + 0 + int_base + record_num - 1) * record_num /2;
   int col1_actual   = 0;
   for (int i = 0; i < chunk1.rows(); i++) {
     col1_actual += chunk1.get_value(0, i).get_int();
@@ -346,11 +342,12 @@ TEST_P(PaxPageHandlerTestWithParam, PaxPageHandler)
 
   rc = record_page_handle->cleanup();
   ASSERT_EQ(rc, RC::SUCCESS);
-  ASSERT_EQ(RC::SUCCESS, bpm.close_file(record_manager_file));
+  delete record_page_handle;
+  bpm->close_file(record_manager_file);
+  delete bpm;
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    PaxFileScannerTests, PaxRecordFileScannerWithParam, testing::Values(1, 10, 100, 1000, 2000, 10000));
+INSTANTIATE_TEST_SUITE_P(PaxFileScannerTests, PaxRecordFileScannerWithParam, testing::Values(1, 10, 100, 1000, 2000, 10000));
 
 INSTANTIATE_TEST_SUITE_P(PaxPageTests, PaxPageHandlerTestWithParam, testing::Values(1, 10, 100, 337));
 

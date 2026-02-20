@@ -68,6 +68,8 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         CREATE
         MATERIALIZED
         VIEW
+        IF
+        EXISTS
         AS
         DROP
         GROUP
@@ -92,8 +94,10 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
         TRX_COMMIT
         TRX_ROLLBACK
         INT_T
+        BIGINT_T
         STRING_T
         FLOAT_T
+        DATE_T
         TEXT
         VECTOR_T
         HELP
@@ -203,6 +207,7 @@ UnboundAggregateExpr *create_aggregate_expression(const char *aggregate_name,
 %type <sql_node>            create_table_stmt
 %type <sql_node>            create_materialized_view_stmt
 %type <sql_node>            drop_table_stmt
+%type <sql_node>            drop_materialized_view_stmt
 %type <sql_node>            analyze_table_stmt
 %type <sql_node>            show_tables_stmt
 %type <sql_node>            desc_table_stmt
@@ -242,6 +247,7 @@ command_wrapper:
   | create_table_stmt
   | create_materialized_view_stmt
   | drop_table_stmt
+  | drop_materialized_view_stmt
   | analyze_table_stmt
   | show_tables_stmt
   | desc_table_stmt
@@ -297,7 +303,26 @@ drop_table_stmt:    /*drop table 语句的语法解析树*/
     DROP TABLE ID {
       $$ = new ParsedSqlNode(SCF_DROP_TABLE);
       $$->drop_table.relation_name = $3;
+      $$->drop_table.if_exists     = false;
+    }
+    | DROP TABLE IF EXISTS ID {
+      $$ = new ParsedSqlNode(SCF_DROP_TABLE);
+      $$->drop_table.relation_name = $5;
+      $$->drop_table.if_exists     = true;
     };
+
+drop_materialized_view_stmt: /* drop materialized view 语句的语法解析树 */
+    DROP MATERIALIZED VIEW ID {
+      $$ = new ParsedSqlNode(SCF_DROP_TABLE);
+      $$->drop_table.relation_name = $4;
+      $$->drop_table.if_exists     = false;
+    }
+    | DROP MATERIALIZED VIEW IF EXISTS ID {
+      $$ = new ParsedSqlNode(SCF_DROP_TABLE);
+      $$->drop_table.relation_name = $6;
+      $$->drop_table.if_exists     = true;
+    }
+    ;
 
 analyze_table_stmt:  /* analyze table 语法的语法解析树*/
     ANALYZE TABLE ID {
@@ -371,6 +396,8 @@ create_materialized_view_stmt:
         create_mv.selection.relations.swap($6->selection.relations);
         create_mv.selection.conditions.swap($6->selection.conditions);
         create_mv.selection.group_by.swap($6->selection.group_by);
+        create_mv.selection.order_by.swap($6->selection.order_by);
+        create_mv.selection.limit = $6->selection.limit;
         delete $6;
       }
     }
@@ -405,10 +432,14 @@ attr_def:
       $$->type = (AttrType)$2;
       $$->name = $1;
 
-      if ($2 == (int)AttrType::TEXT) {
-        $$->length = 4096;  // TEXT 默认 65535 字节（使用 LOB 存储）
-      } else {
-        $$->length = 4;
+      switch ((AttrType)$2) {
+        case AttrType::TEXT:   $$->length = 16; break;  // TEXT 使用 LOB 存储，记录中保存 offset/length 引用
+        case AttrType::BIGINT: $$->length = sizeof(int64_t); break;
+        case AttrType::DATE:   $$->length = sizeof(uint32_t); break;
+        case AttrType::FLOATS: $$->length = sizeof(float); break;
+        case AttrType::INTS:   $$->length = sizeof(int); break;
+        case AttrType::CHARS:  $$->length = 4; break;
+        default:               $$->length = 4; break;
       }
     }
     ;
@@ -417,8 +448,10 @@ number:
     ;
 type:
     INT_T      { $$ = static_cast<int>(AttrType::INTS); }
+    | BIGINT_T { $$ = static_cast<int>(AttrType::BIGINT); }
     | STRING_T { $$ = static_cast<int>(AttrType::CHARS); }
     | FLOAT_T  { $$ = static_cast<int>(AttrType::FLOATS); }
+    | DATE_T   { $$ = static_cast<int>(AttrType::DATE); }
     | VECTOR_T { $$ = static_cast<int>(AttrType::VECTORS); }
     | TEXT     { $$ = static_cast<int>(AttrType::TEXT); }
     ;

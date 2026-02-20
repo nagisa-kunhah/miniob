@@ -43,15 +43,34 @@ RC LoadDataStmt::create(Db *db, const LoadDataSqlNode &load_data, Stmt *&stmt)
     return RC::FILE_NOT_EXIST;
   }
 
-  if (load_data.enclosed.size() != 3) {
-    LOG_WARN("load data invalid enclosed. enclosed=%s", load_data.enclosed.c_str());
+  auto extract_char = [](const string &s, const char *name, char &out) -> RC {
+    if (s.empty()) {
+      out = 0;
+      return RC::SUCCESS;
+    }
+    if (s.size() == 1) {
+      out = s[0];
+      return RC::SUCCESS;
+    }
+    if (s.size() == 3) {
+      out = s[1];  // like "','", "'|'", "\""
+      return RC::SUCCESS;
+    }
+    LOG_WARN("load data invalid %s. %s=%s", name, name, s.c_str());
     return RC::INVALID_ARGUMENT;
+  };
+
+  char terminated = 0;
+  char enclosed   = 0;
+  rc              = extract_char(load_data.terminated, "terminated", terminated);
+  if (OB_FAIL(rc)) {
+    return rc;
   }
-  if (load_data.terminated.size() != 3) {
-    LOG_WARN("load data invalid terminated. terminated=%s", load_data.terminated.c_str());
-    return RC::INVALID_ARGUMENT;
+  rc = extract_char(load_data.enclosed, "enclosed", enclosed);
+  if (OB_FAIL(rc)) {
+    return rc;
   }
 
-  stmt = new LoadDataStmt(table, load_data.file_name.c_str(), load_data.terminated[1], load_data.enclosed[1]);
+  stmt = new LoadDataStmt(table, load_data.file_name.c_str(), terminated, enclosed);
   return rc;
 }

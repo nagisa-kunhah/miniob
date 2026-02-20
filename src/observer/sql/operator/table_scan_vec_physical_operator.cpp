@@ -35,31 +35,46 @@ RC TableScanVecPhysicalOperator::next(Chunk &chunk)
 {
   RC rc = RC::SUCCESS;
 
-  all_columns_.reset_data();
-  filterd_columns_.reset_data();
-  if (OB_SUCC(rc = chunk_scanner_.next_chunk(all_columns_))) {
-    select_.assign(all_columns_.rows(), 1);
+  while (true) {
+    all_columns_.reset_data();
+    filterd_columns_.reset_data();
+
+    rc = chunk_scanner_.next_chunk(all_columns_);
+    if (OB_FAIL(rc)) {
+      return rc;  // includes RECORD_EOF
+    }
+
     if (predicates_.empty()) {
       chunk.reference(all_columns_);
-    } else {
-      rc = filter(all_columns_);
-      if (rc != RC::SUCCESS) {
-        LOG_TRACE("filtered failed=%s", strrc(rc));
-        return rc;
-      }
-      // TODO: if all setted, it doesn't need to set one by one
-      for (int i = 0; i < all_columns_.rows(); i++) {
-        if (select_[i] == 0) {
-          continue;
-        }
-        for (int j = 0; j < all_columns_.column_num(); j++) {
-          filterd_columns_.column(j).append_value(all_columns_.column(filterd_columns_.column_ids(j)).get_value(i));
-        }
-      }
-      chunk.reference(filterd_columns_);
+      return RC::SUCCESS;
     }
+
+    select_.assign(all_columns_.rows(), 1);
+    rc = filter(all_columns_);
+    if (OB_FAIL(rc)) {
+      LOG_TRACE("filtered failed=%s", strrc(rc));
+      return rc;
+    }
+
+    // TODO: if all setted, it doesn't need to set one by one
+    for (int i = 0; i < all_columns_.rows(); i++) {
+      if (select_[i] == 0) {
+        continue;
+      }
+      for (int j = 0; j < all_columns_.column_num(); j++) {
+        RC rc2 = filterd_columns_.column(j).append_value(all_columns_.column(j).get_value(i));
+        if (OB_FAIL(rc2)) {
+          return rc2;
+        }
+      }
+    }
+
+    if (filterd_columns_.rows() > 0) {
+      chunk.reference(filterd_columns_);
+      return RC::SUCCESS;
+    }
+    // All rows in this page were filtered out, continue to next page
   }
-  return rc;
 }
 
 RC TableScanVecPhysicalOperator::close() { return chunk_scanner_.close_scan(); }

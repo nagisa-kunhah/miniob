@@ -334,6 +334,8 @@ public:
 
   virtual RC delete_record(const RID *rid) override;
 
+  virtual RC update_record(const RID &rid, const char *data) override;
+
   /**
    * @brief 获取指定位置的记录数据
    *
@@ -358,6 +360,8 @@ private:
   int get_field_len(int col_id);
 
   RC set_record_data(SlotNum slot_num, Record &record);
+
+  friend class ChunkFileScanner;
 };
 /**
  * @brief 管理整个文件中记录的增删改查
@@ -462,4 +466,7 @@ private:
 
   BufferPoolIterator bp_iterator_;                    ///< 遍历buffer pool的所有页面
   RecordPageHandler *record_page_handler_ = nullptr;  ///< 处理文件某页面的记录
+  PageNum            current_page_num_    = BP_INVALID_PAGE_NUM;
+  RecordPageIterator page_iterator_;
+  bool               page_iter_inited_ = false;
 };

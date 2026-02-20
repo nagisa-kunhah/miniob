@@ -28,21 +28,20 @@ Value::Value(bool val) { set_boolean(val); }
 
 Value::Value(const char *s, int len /*= 0*/) { set_string(s, len); }
 
-Value::Value(const string_t &s) { set_string(s.data(), s.size()); }
+Value::Value(const string_t &s) { set_text(s.data(), s.size()); }
 
 Value::Value(const Value &other)
 {
   this->attr_type_ = other.attr_type_;
   this->length_    = other.length_;
   this->own_data_  = other.own_data_;
-  switch (this->attr_type_) {
-    case AttrType::CHARS: {
-      set_string_from_other(other);
-    } break;
+  this->value_     = other.value_;
 
-    default: {
-      this->value_ = other.value_;
-    } break;
+  if ((this->attr_type_ == AttrType::CHARS || this->attr_type_ == AttrType::TEXT) && this->own_data_ &&
+      other.value_.pointer_value_ != nullptr) {
+    this->value_.pointer_value_ = new char[this->length_ + 1];
+    memcpy(this->value_.pointer_value_, other.value_.pointer_value_, this->length_);
+    this->value_.pointer_value_[this->length_] = '\0';
   }
 }
 
@@ -65,14 +64,13 @@ Value &Value::operator=(const Value &other)
   this->attr_type_ = other.attr_type_;
   this->length_    = other.length_;
   this->own_data_  = other.own_data_;
-  switch (this->attr_type_) {
-    case AttrType::CHARS: {
-      set_string_from_other(other);
-    } break;
+  this->value_     = other.value_;
 
-    default: {
-      this->value_ = other.value_;
-    } break;
+  if ((this->attr_type_ == AttrType::CHARS || this->attr_type_ == AttrType::TEXT) && this->own_data_ &&
+      other.value_.pointer_value_ != nullptr) {
+    this->value_.pointer_value_ = new char[this->length_ + 1];
+    memcpy(this->value_.pointer_value_, other.value_.pointer_value_, this->length_);
+    this->value_.pointer_value_[this->length_] = '\0';
   }
   return *this;
 }
@@ -96,6 +94,7 @@ void Value::reset()
 {
   switch (attr_type_) {
     case AttrType::CHARS:
+    case AttrType::TEXT:
       if (own_data_ && value_.pointer_value_ != nullptr) {
         delete[] value_.pointer_value_;
         value_.pointer_value_ = nullptr;
@@ -136,7 +135,15 @@ void Value::set_data(char *data, int length)
       length_              = length;
     } break;
     case AttrType::TEXT: {
-      set_string(data, length);
+      if (length == static_cast<int>(sizeof(string_t))) {
+        // TEXT in chunk memory is represented as string_t (fixed-length), which references actual bytes.
+        // Value must own a copy, because chunk columns may reset/reuse their VectorBuffer between operators.
+        const string_t &s = *reinterpret_cast<const string_t *>(data);
+        set_text(s.data(), s.size());
+      } else {
+        // Fallback: treat the input as raw text bytes.
+        set_text(data, length);
+      }
     } break;
     default: {
       LOG_WARN("unknown data type: %d", attr_type_);
@@ -188,6 +195,25 @@ void Value::set_string(const char *s, int len /*= 0*/)
   }
 }
 
+void Value::set_text(const char *s, int len /*= 0*/)
+{
+  reset();
+  attr_type_ = AttrType::TEXT;
+  if (s == nullptr) {
+    value_.pointer_value_ = nullptr;
+    length_               = 0;
+  } else {
+    own_data_ = true;
+    if (len <= 0) {
+      len = strlen(s);
+    }
+    value_.pointer_value_ = new char[len + 1];
+    length_               = len;
+    memcpy(value_.pointer_value_, s, len);
+    value_.pointer_value_[len] = '\0';
+  }
+}
+
 void Value::set_empty_string(int len)
 {
   reset();
@@ -206,11 +232,20 @@ void Value::set_value(const Value &value)
     case AttrType::INTS: {
       set_int(value.get_int());
     } break;
+    case AttrType::BIGINT: {
+      set_bigint(value.get_bigint());
+    } break;
     case AttrType::FLOATS: {
       set_float(value.get_float());
     } break;
+    case AttrType::DATE: {
+      set_date(value.get_date());
+    } break;
     case AttrType::CHARS: {
       set_string(value.get_string().c_str());
+    } break;
+    case AttrType::TEXT: {
+      set_text(value.data(), value.length());
     } break;
     case AttrType::BOOLEANS: {
       set_boolean(value.get_boolean());
@@ -223,7 +258,7 @@ void Value::set_value(const Value &value)
 
 void Value::set_string_from_other(const Value &other)
 {
-  ASSERT(attr_type_ == AttrType::CHARS, "attr type is not CHARS");
+  ASSERT(attr_type_ == AttrType::CHARS || attr_type_ == AttrType::TEXT, "attr type is not CHARS/TEXT");
   if (own_data_ && other.value_.pointer_value_ != nullptr && length_ != 0) {
     this->value_.pointer_value_ = new char[this->length_ + 1];
     memcpy(this->value_.pointer_value_, other.value_.pointer_value_, this->length_);
@@ -235,6 +270,9 @@ char *Value::data() const
 {
   switch (attr_type_) {
     case AttrType::CHARS: {
+      return value_.pointer_value_;
+    } break;
+    case AttrType::TEXT: {
       return value_.pointer_value_;
     } break;
     default: {
@@ -319,7 +357,7 @@ string Value::get_string() const { return this->to_string(); }
 
 string_t Value::get_string_t() const
 {
-  ASSERT(attr_type_ == AttrType::CHARS, "attr type is not CHARS");
+  ASSERT(attr_type_ == AttrType::CHARS || attr_type_ == AttrType::TEXT, "attr type is not CHARS/TEXT");
   return string_t(value_.pointer_value_, length_);
 }
 
@@ -370,14 +408,34 @@ uint32_t Value::get_date() const
 
 int64_t Value::get_bigint() const
 {
-  if (AttrType::INTS == attr_type_) {
-    return value_.bigint_value_;
-  } else if (AttrType::BIGINT == attr_type_) {
-    return value_.int_value_;
-  } else {
-    LOG_WARN("unknown data type. type=%d", attr_type_);
+  switch (attr_type_) {
+    case AttrType::BIGINT: {
+      return value_.bigint_value_;
+    }
+    case AttrType::INTS: {
+      return static_cast<int64_t>(value_.int_value_);
+    }
+    case AttrType::FLOATS: {
+      return static_cast<int64_t>(value_.float_value_);
+    }
+    case AttrType::BOOLEANS: {
+      return static_cast<int64_t>(value_.bool_value_);
+    }
+    case AttrType::CHARS: {
+      try {
+        return stoll(value_.pointer_value_);
+      } catch (exception const &ex) {
+        LOG_TRACE("failed to convert string to bigint. s=%s, ex=%s",
+            value_.pointer_value_ == nullptr ? "(null)" : value_.pointer_value_,
+            ex.what());
+        return 0;
+      }
+    }
+    default: {
+      LOG_WARN("unknown data type. type=%d", attr_type_);
+      return 0;
+    }
   }
-  return 0;
 }
 
 void Value::set_bigint(int64_t val)
@@ -386,4 +444,12 @@ void Value::set_bigint(int64_t val)
   attr_type_           = AttrType::BIGINT;
   value_.bigint_value_ = val;
   length_              = sizeof(val);
+}
+
+void Value::set_date(uint32_t val)
+{
+  reset();
+  attr_type_         = AttrType::DATE;
+  value_.date_value_ = val;
+  length_            = sizeof(val);
 }

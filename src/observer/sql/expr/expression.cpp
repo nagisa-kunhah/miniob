@@ -71,6 +71,17 @@ RC ValueExpr::get_column(Chunk &chunk, Column &column)
   return RC::SUCCESS;
 }
 
+RC ValueExpr::eval(Chunk &chunk, std::vector<uint8_t> &select)
+{
+  // When used as a predicate (e.g. ValueExpr(true) after predicate pushdown),
+  // a true value keeps all rows, a false value filters all rows.
+  bool val = value_.get_boolean();
+  if (!val) {
+    std::fill(select.begin(), select.end(), 0);
+  }
+  return RC::SUCCESS;
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 CastExpr::CastExpr(unique_ptr<Expression> child, AttrType cast_type) : child_(std::move(child)), cast_type_(cast_type)
 {}
@@ -241,7 +252,30 @@ RC ComparisonExpr::eval(Chunk &chunk, vector<uint8_t> &select)
     rc = compare_column<int>(left_column, right_column, select);
   } else if (left_column.attr_type() == AttrType::FLOATS) {
     rc = compare_column<float>(left_column, right_column, select);
+  } else if (left_column.attr_type() == AttrType::BIGINT) {
+    rc = compare_column<int64_t>(left_column, right_column, select);
+  } else if (left_column.attr_type() == AttrType::DATE) {
+    rc = compare_column<uint32_t>(left_column, right_column, select);
   } else if (left_column.attr_type() == AttrType::CHARS) {
+    int rows = 0;
+    if (left_column.column_type() == Column::Type::CONSTANT_COLUMN) {
+      rows = right_column.count();
+    } else {
+      rows = left_column.count();
+    }
+    for (int i = 0; i < rows; ++i) {
+      Value left_val  = left_column.get_value(i);
+      Value right_val = right_column.get_value(i);
+      bool  result    = false;
+      rc              = compare_value(left_val, right_val, result);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to compare tuple cells. rc=%s", strrc(rc));
+        return rc;
+      }
+      select[i] &= result ? 1 : 0;
+    }
+
+  } else if (left_column.attr_type() == AttrType::TEXT) {
     int rows = 0;
     if (left_column.column_type() == Column::Type::CONSTANT_COLUMN) {
       rows = right_column.count();
@@ -315,6 +349,44 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
 
   bool default_value = (conjunction_type_ == Type::AND);
   value.set_boolean(default_value);
+  return rc;
+}
+
+RC ConjunctionExpr::eval(Chunk &chunk, vector<uint8_t> &select)
+{
+  if (children_.empty()) {
+    return RC::SUCCESS;
+  }
+
+  RC rc = RC::SUCCESS;
+  if (conjunction_type_ == Type::AND) {
+    // AND: evaluate each child; each child further zeroes out select bits
+    for (auto &child : children_) {
+      rc = child->eval(chunk, select);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("conjunction AND child eval failed. rc=%s", strrc(rc));
+        return rc;
+      }
+    }
+  } else {
+    // OR: start with all-zero, union the results from each child
+    vector<uint8_t> result(select.size(), 0);
+    for (auto &child : children_) {
+      vector<uint8_t> child_select(select);  // copy current select
+      rc = child->eval(chunk, child_select);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("conjunction OR child eval failed. rc=%s", strrc(rc));
+        return rc;
+      }
+      for (size_t i = 0; i < result.size(); i++) {
+        result[i] |= child_select[i];
+      }
+    }
+    // Intersect with incoming select
+    for (size_t i = 0; i < select.size(); i++) {
+      select[i] = select[i] & result[i];
+    }
+  }
   return rc;
 }
 
@@ -402,6 +474,9 @@ RC ArithmeticExpr::execute_calc(
       } else if (attr_type == AttrType::FLOATS) {
         binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, float, AddOperator>(
             (float *)left.data(), (float *)right.data(), (float *)result.data(), result.capacity());
+      } else if (attr_type == AttrType::BIGINT) {
+        binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, int64_t, AddOperator>(
+            (int64_t *)left.data(), (int64_t *)right.data(), (int64_t *)result.data(), result.capacity());
       } else {
         rc = RC::UNIMPLEMENTED;
       }
@@ -413,6 +488,9 @@ RC ArithmeticExpr::execute_calc(
       } else if (attr_type == AttrType::FLOATS) {
         binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, float, SubtractOperator>(
             (float *)left.data(), (float *)right.data(), (float *)result.data(), result.capacity());
+      } else if (attr_type == AttrType::BIGINT) {
+        binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, int64_t, SubtractOperator>(
+            (int64_t *)left.data(), (int64_t *)right.data(), (int64_t *)result.data(), result.capacity());
       } else {
         rc = RC::UNIMPLEMENTED;
       }
@@ -424,6 +502,9 @@ RC ArithmeticExpr::execute_calc(
       } else if (attr_type == AttrType::FLOATS) {
         binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, float, MultiplyOperator>(
             (float *)left.data(), (float *)right.data(), (float *)result.data(), result.capacity());
+      } else if (attr_type == AttrType::BIGINT) {
+        binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, int64_t, MultiplyOperator>(
+            (int64_t *)left.data(), (int64_t *)right.data(), (int64_t *)result.data(), result.capacity());
       } else {
         rc = RC::UNIMPLEMENTED;
       }
@@ -435,6 +516,9 @@ RC ArithmeticExpr::execute_calc(
       } else if (attr_type == AttrType::FLOATS) {
         binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, float, DivideOperator>(
             (float *)left.data(), (float *)right.data(), (float *)result.data(), result.capacity());
+      } else if (attr_type == AttrType::BIGINT) {
+        binary_operator<LEFT_CONSTANT, RIGHT_CONSTANT, int64_t, DivideOperator>(
+            (int64_t *)left.data(), (int64_t *)right.data(), (int64_t *)result.data(), result.capacity());
       } else {
         rc = RC::UNIMPLEMENTED;
       }
@@ -445,6 +529,9 @@ RC ArithmeticExpr::execute_calc(
       } else if (attr_type == AttrType::FLOATS) {
         unary_operator<LEFT_CONSTANT, float, NegateOperator>(
             (float *)left.data(), (float *)result.data(), result.capacity());
+      } else if (attr_type == AttrType::BIGINT) {
+        unary_operator<LEFT_CONSTANT, int64_t, NegateOperator>(
+            (int64_t *)left.data(), (int64_t *)result.data(), result.capacity());
       } else {
         rc = RC::UNIMPLEMENTED;
       }

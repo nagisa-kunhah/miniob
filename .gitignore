@@ -1,4 +1,6 @@
 deps/3rd/*
+!deps/3rd/csv.hpp
+!deps/3rd/csv-parser.LICENSE
 .vscode
 !.vscode/tasks.json
 !.vscode/launch.json

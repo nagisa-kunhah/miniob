@@ -28,6 +28,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/optimizer/optimize_stage.h"
 #include "sql/stmt/create_materialized_view_stmt.h"
 #include "sql/stmt/select_stmt.h"
+#include "sql/stmt/filter_stmt.h"
 #include "storage/db/db.h"
 #include "storage/record/record.h"
 #include "storage/table/table.h"
@@ -69,6 +70,24 @@ static string normalize_display_name(const char *raw, int index)
   return "c" + std::to_string(index);
 }
 
+static const char *storage_format_name(StorageFormat format)
+{
+  switch (format) {
+    case StorageFormat::PAX_FORMAT: return "pax";
+    case StorageFormat::ROW_FORMAT: return "row";
+    default: return "unknown";
+  }
+}
+
+static const char *execution_mode_name(ExecutionMode mode)
+{
+  switch (mode) {
+    case ExecutionMode::CHUNK_ITERATOR: return "chunk_iterator";
+    case ExecutionMode::TUPLE_ITERATOR: return "tuple_iterator";
+    default: return "unknown";
+  }
+}
+
 static int default_length_for_type(AttrType type)
 {
   switch (type) {
@@ -77,7 +96,7 @@ static int default_length_for_type(AttrType type)
     case AttrType::BOOLEANS: return sizeof(int32_t);
     case AttrType::DATE: return sizeof(uint32_t);
     case AttrType::BIGINT: return sizeof(int64_t);
-    case AttrType::TEXT: return 4096;
+    case AttrType::TEXT: return 16;
     case AttrType::CHARS: return 4;
     default: return 4;
   }
@@ -114,6 +133,9 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
   }
 
   const string &view_name = create_mv_stmt->view_name();
+  LOG_INFO("create materialized view request: name=%s exec_mode=%s",
+      view_name.c_str(),
+      execution_mode_name(session->get_execution_mode()));
 
   // 1) Bind & validate select stmt
   Stmt *select_stmt_raw = nullptr;
@@ -122,6 +144,31 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
     return rc;
   }
   unique_ptr<SelectStmt> select_stmt(static_cast<SelectStmt *>(select_stmt_raw));
+
+  const int table_count      = static_cast<int>(select_stmt->tables().size());
+  const int expr_count       = static_cast<int>(select_stmt->query_expressions().size());
+  const int group_by_count   = static_cast<int>(select_stmt->group_by().size());
+  const int order_by_count   = static_cast<int>(select_stmt->order_by().size());
+  const int limit_value      = select_stmt->limit();
+  const int filter_unit_count = select_stmt->filter_stmt() == nullptr
+                                    ? 0
+                                    : static_cast<int>(select_stmt->filter_stmt()->filter_units().size());
+  LOG_INFO("mv select summary: tables=%d exprs=%d filters=%d group_by=%d order_by=%d limit=%d",
+      table_count,
+      expr_count,
+      filter_unit_count,
+      group_by_count,
+      order_by_count,
+      limit_value);
+  for (int i = 0; i < table_count; i++) {
+    Table *table = select_stmt->tables()[i];
+    if (table != nullptr) {
+      LOG_INFO("mv select table[%d]: name=%s storage=%s",
+          i,
+          table->name(),
+          storage_format_name(table->table_meta().storage_format()));
+    }
+  }
 
   // 2) Infer materialized view schema from select expressions
   const auto &query_expressions = select_stmt->query_expressions();
@@ -163,11 +210,34 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
 
   // 3) Create table for MV
   vector<string> empty_primary_keys;
+  StorageFormat storage_format = StorageFormat::ROW_FORMAT;
+  const auto &source_tables    = select_stmt->tables();
+  if (source_tables.size() == 1 && source_tables[0] != nullptr) {
+    storage_format = source_tables[0]->table_meta().storage_format();
+  }
+
+  // Overwrite semantics: drop existing MV (table) with the same name.
+  if (db->find_table(view_name.c_str()) != nullptr) {
+    rc = db->drop_table(view_name.c_str());
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+  }
+
+  LOG_INFO("create materialized view: name=%s storage_format=%s",
+      view_name.c_str(),
+      storage_format_name(storage_format));
+
   rc = db->create_table(view_name.c_str(),
       span<const AttrInfoSqlNode>(attr_infos.data(), attr_infos.size()),
       empty_primary_keys,
-      StorageFormat::ROW_FORMAT);
+      storage_format);
   if (OB_FAIL(rc)) {
+    if (rc == RC::SCHEMA_TABLE_EXIST) {
+      LOG_WARN("create materialized view failed: %s already exists", view_name.c_str());
+    } else {
+      LOG_WARN("create materialized view failed: %s rc=%s", view_name.c_str(), strrc(rc));
+    }
     return rc;
   }
 
@@ -187,6 +257,7 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
 
   OptimizeStage optimize_stage;
   rc = optimize_stage.handle_request(&tmp_event);
+
   if (OB_FAIL(rc)) {
     return rc;
   }
@@ -195,6 +266,10 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
   if (oper == nullptr) {
     return RC::INTERNAL;
   }
+  LOG_INFO("mv physical plan: used_chunk_mode=%d root=%s exec_mode=%s",
+      session->used_chunk_mode(),
+      oper->name().c_str(),
+      execution_mode_name(session->get_execution_mode()));
 
   Trx *trx = session->current_trx();
   trx->start_if_need();
@@ -205,8 +280,10 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
   }
 
   const int expected_columns = static_cast<int>(attr_infos.size());
+  int64_t inserted_rows = 0;
   if (session->used_chunk_mode()) {
     Chunk chunk;
+    int   chunk_idx = 0;
     while (true) {
       rc = oper->next(chunk);
       if (rc == RC::RECORD_EOF) {
@@ -214,15 +291,22 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
         break;
       }
       if (OB_FAIL(rc)) {
+        LOG_WARN("mv chunk next failed at chunk_idx=%d inserted_rows=%ld rc=%s",
+            chunk_idx, inserted_rows, strrc(rc));
         break;
       }
 
-      if (chunk.column_num() != expected_columns) {
+      const int col_num = chunk.column_num();
+      const int rows    = chunk.rows();
+      LOG_TRACE("mv chunk[%d]: cols=%d rows=%d", chunk_idx, col_num, rows);
+
+      if (col_num < expected_columns) {
+        LOG_WARN("mv insert chunk column mismatch: expected=%d got=%d",
+            expected_columns, col_num);
         rc = RC::INTERNAL;
         break;
       }
 
-      const int     rows = chunk.rows();
       vector<Value> values;
       values.resize(expected_columns);
       for (int r = 0; r < rows && OB_SUCC(rc); r++) {
@@ -230,10 +314,16 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
           values[c] = chunk.get_value(c, r);
         }
         rc = insert_one_row(mv_table, trx, values);
+        if (OB_SUCC(rc)) {
+          inserted_rows++;
+        } else {
+          LOG_WARN("mv insert failed at row %ld rc=%s", inserted_rows, strrc(rc));
+        }
       }
       if (OB_FAIL(rc)) {
         break;
       }
+      chunk_idx++;
     }
   } else {
     while (true) {
@@ -243,15 +333,19 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
         break;
       }
       if (OB_FAIL(rc)) {
+        LOG_WARN("mv tuple next failed at row %ld rc=%s", inserted_rows, strrc(rc));
         break;
       }
 
       Tuple *tuple = oper->current_tuple();
       if (tuple == nullptr) {
+        LOG_WARN("mv tuple is null at row %ld", inserted_rows);
         rc = RC::INTERNAL;
         break;
       }
-      if (tuple->cell_num() != expected_columns) {
+      if (tuple->cell_num() < expected_columns) {
+        LOG_WARN("mv insert tuple column mismatch: expected=%d got=%d at row %ld",
+            expected_columns, tuple->cell_num(), inserted_rows);
         rc = RC::INTERNAL;
         break;
       }
@@ -261,6 +355,7 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
       for (int i = 0; i < expected_columns; i++) {
         rc = tuple->cell_at(i, values[i]);
         if (OB_FAIL(rc)) {
+          LOG_WARN("mv cell_at(%d) failed at row %ld rc=%s", i, inserted_rows, strrc(rc));
           break;
         }
       }
@@ -270,8 +365,10 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
 
       rc = insert_one_row(mv_table, trx, values);
       if (OB_FAIL(rc)) {
+        LOG_WARN("mv insert failed at row %ld rc=%s", inserted_rows, strrc(rc));
         break;
       }
+      inserted_rows++;
     }
   }
 
@@ -295,5 +392,17 @@ RC CreateMaterializedViewExecutor::execute(SQLStageEvent *sql_event)
     session->destroy_trx();
   }
 
+  // Flush MV table data to disk so it survives a restart
+  if (rc == RC::SUCCESS) {
+    RC sync_rc = mv_table->sync();
+    if (OB_FAIL(sync_rc)) {
+      LOG_WARN("failed to sync mv table. rc=%s", strrc(sync_rc));
+    }
+  }
+
+  LOG_INFO("create materialized view finished: name=%s rows=%ld rc=%s",
+      view_name.c_str(),
+      inserted_rows,
+      strrc(rc));
   return rc;
 }

@@ -30,8 +30,12 @@ RC CharType::cast_to(const Value &val, AttrType type, Value &result) const
 {
   switch (type) {
     case AttrType::TEXT: {
-      result.set_string(val.value_.pointer_value_);
+      result.set_text(val.value_.pointer_value_, val.length());
       return RC::SUCCESS;
+    }
+    case AttrType::DATE: {
+      string s = val.value_.pointer_value_ == nullptr ? "" : string(val.value_.pointer_value_, val.length());
+      return DataType::type_instance(AttrType::DATE)->set_value_from_str(result, s);
     }
     default: return RC::UNIMPLEMENTED;
   }
@@ -42,6 +46,12 @@ int CharType::cast_cost(AttrType type)
 {
   if (type == AttrType::CHARS) {
     return 0;
+  }
+  if (type == AttrType::TEXT) {
+    return 1;
+  }
+  if (type == AttrType::DATE) {
+    return 1;
   }
   return INT32_MAX;
 }

@@ -103,6 +103,21 @@ void Frame::write_unlatch(intptr_t xid)
       "this=%p, pin=%d, frameId=%s, xid=%lx, lbt=%s",
       this, pin_count_.load(), frame_id_.to_string().c_str(), xid, lbt());
 
+  // if (write_locker_ != xid) {
+  //   Session *session = Session::current_session();
+  //   // LOG_ERROR(
+  //   //     "frame unlock write while not the owner. write_locker=%lx, xid=%lx, this=%p, pin=%d, frameId=%s, "
+  //   //     "session=%p, pthread=%p, lbt=%s",
+  //   //     write_locker_,
+  //   //     xid,
+  //   //     this,
+  //   //     pin_count_.load(),
+  //   //     frame_id_.to_string().c_str(),
+  //   //     session,
+  //   //     reinterpret_cast<void *>(pthread_self()),
+  //   //     lbt());
+  // }
+
   ASSERT(write_locker_ == xid,
       "frame unlock write while not the owner."
       "write_locker=%lx, this=%p, pin=%d, frameId=%s, xid=%lx, lbt=%s",

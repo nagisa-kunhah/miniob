@@ -71,12 +71,8 @@ RC TableMeta::init(int32_t table_id, const char *name, const vector<FieldMeta> *
     fields_.resize(attributes.size() + trx_fields->size());
     for (size_t i = 0; i < trx_fields->size(); i++) {
       const FieldMeta &field_meta = (*trx_fields)[i];
-      fields_[i]                  = FieldMeta(field_meta.name(),
-          field_meta.type(),
-          field_offset,
-          field_meta.len(),
-          false /*visible*/,
-          field_meta.field_id());
+      fields_[i]                  = FieldMeta(
+          field_meta.name(), field_meta.type(), field_offset, field_meta.len(), false /*visible*/, static_cast<int>(i));
       field_offset += field_meta.len();
     }
 
@@ -87,9 +83,13 @@ RC TableMeta::init(int32_t table_id, const char *name, const vector<FieldMeta> *
 
   for (size_t i = 0; i < attributes.size(); i++) {
     const AttrInfoSqlNode &attr_info = attributes[i];
-    // `i` is the col_id of fields[i]
-    rc = fields_[i + trx_field_num].init(
-        attr_info.name.c_str(), attr_info.type, field_offset, attr_info.length, true /*visible*/, i);
+    // field_id is the physical column index in `fields_` (sys fields included)
+    rc = fields_[i + trx_field_num].init(attr_info.name.c_str(),
+        attr_info.type,
+        field_offset,
+        attr_info.length,
+        true /*visible*/,
+        static_cast<int>(i) + trx_field_num);
     if (OB_FAIL(rc)) {
       LOG_ERROR("Failed to init field meta. table name=%s, field name: %s", name, attr_info.name.c_str());
       return rc;
@@ -283,6 +283,11 @@ int TableMeta::deserialize(istream &is)
 
   auto comparator = [](const FieldMeta &f1, const FieldMeta &f2) { return f1.offset() < f2.offset(); };
   sort(fields.begin(), fields.end(), comparator);
+
+  // Keep `field_id` consistent with the physical order in `fields_`.
+  for (size_t i = 0; i < fields.size(); i++) {
+    fields[i].set_field_id(static_cast<int>(i));
+  }
 
   table_id_       = table_id;
   storage_format_ = static_cast<StorageFormat>(storage_format);

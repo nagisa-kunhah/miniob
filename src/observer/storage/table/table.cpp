@@ -109,6 +109,23 @@ RC Table::create(Db *db, int32_t table_id, const char *path, const char *name, c
     return rc;
   }
 
+  bool need_lob = false;
+  for (const auto &attr : attributes) {
+    if (attr.type == AttrType::TEXT) {
+      need_lob = true;
+      break;
+    }
+  }
+  if (need_lob) {
+    lob_handler_ = new LobFileHandler();
+    string lob_file = table_lob_file(base_dir, name);
+    rc              = lob_handler_->create_file(lob_file.c_str());
+    if (OB_FAIL(rc)) {
+      LOG_ERROR("Failed to create LOB file for table %s. file=%s, rc=%s", name, lob_file.c_str(), strrc(rc));
+      return rc;
+    }
+  }
+
   if (table_meta_.storage_engine() == StorageEngine::HEAP) {
     engine_ = make_unique<HeapTableEngine>(&table_meta_, db_, this);
   } else if (table_meta_.storage_engine() == StorageEngine::LSM) {
@@ -148,6 +165,33 @@ RC Table::open(Db *db, const char *meta_file, const char *base_dir)
   db_ = db;
   meta_file_path_.swap(meta_file_path);
 
+  RC rc = RC::SUCCESS;
+
+  bool need_lob = false;
+  const int sys_field_num = table_meta_.sys_field_num();
+  for (int i = sys_field_num; i < table_meta_.field_num(); i++) {
+    const FieldMeta *field = table_meta_.field(i);
+    if (field->type() == AttrType::TEXT) {
+      need_lob = true;
+      break;
+    }
+  }
+  if (need_lob) {
+    lob_handler_ = new LobFileHandler();
+    string lob_file = table_lob_file(base_dir, table_meta_.name());
+    rc              = lob_handler_->open_file(lob_file.c_str());
+    if (rc == RC::FILE_NOT_EXIST) {
+      rc = lob_handler_->create_file(lob_file.c_str());
+    }
+    if (OB_FAIL(rc)) {
+      LOG_ERROR("Failed to open LOB file for table %s. file=%s, rc=%s",
+          table_meta_.name(),
+          lob_file.c_str(),
+          strrc(rc));
+      return rc;
+    }
+  }
+
   // // 加载数据文件
   // RC rc = init_record_handler(base_dir);
   // if (rc != RC::SUCCESS) {
@@ -155,7 +199,6 @@ RC Table::open(Db *db, const char *meta_file, const char *base_dir)
   //   // don't need to remove the data_file
   //   return rc;
   // }
-  RC rc = RC::SUCCESS;
 
   if (table_meta_.storage_engine() == StorageEngine::HEAP) {
     engine_ = make_unique<HeapTableEngine>(&table_meta_, db_, this);
@@ -275,13 +318,46 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
 
 RC Table::set_value_to_record(char *record_data, const Value &value, const FieldMeta *field)
 {
+  if (field->type() == AttrType::TEXT) {
+    if (lob_handler_ == nullptr) {
+      LOG_WARN("lob handler is null for text field. table=%s, field=%s", table_meta_.name(), field->name());
+      return RC::INTERNAL;
+    }
+    if (value.attr_type() != AttrType::CHARS && value.attr_type() != AttrType::TEXT) {
+      LOG_WARN("invalid value type for text field. table=%s, field=%s, value_type=%s",
+          table_meta_.name(),
+          field->name(),
+          attr_type_to_string(value.attr_type()));
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+
+    const int64_t text_len = static_cast<int64_t>(value.length());
+    if (text_len > 65535) {
+      LOG_WARN("text value too long. table=%s, field=%s, len=%ld", table_meta_.name(), field->name(), text_len);
+      return RC::INVALID_ARGUMENT;
+    }
+
+    TextLobRef ref;
+    ref.length = text_len;
+    if (text_len > 0) {
+      RC rc = lob_handler_->insert_data(ref.offset, ref.length, value.data());
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to insert text into lob. table=%s, field=%s, rc=%s", table_meta_.name(), field->name(), strrc(rc));
+        return rc;
+      }
+    }
+    memcpy(record_data + field->offset(), &ref, sizeof(ref));
+    return RC::SUCCESS;
+  }
+
   size_t       copy_len = field->len();
   const size_t data_len = value.length();
-  if (field->type() == AttrType::CHARS || field->type() == AttrType::TEXT) {
+  if (field->type() == AttrType::CHARS) {
     if (copy_len > data_len) {
       copy_len = data_len + 1;
     }
   }
+
   memcpy(record_data + field->offset(), value.data(), copy_len);
   return RC::SUCCESS;
 }

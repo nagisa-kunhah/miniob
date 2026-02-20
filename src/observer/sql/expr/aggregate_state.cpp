@@ -55,6 +55,9 @@ void *create_aggregate_state(AggregateExpr::Type aggr_type, AttrType attr_type)
     } else if (attr_type == AttrType::FLOATS) {
       state_ptr = malloc(sizeof(SumState<float>));
       new (state_ptr) SumState<float>();
+    } else if (attr_type == AttrType::BIGINT) {
+      state_ptr = malloc(sizeof(SumState<int64_t>));
+      new (state_ptr) SumState<int64_t>();
     } else {
       LOG_WARN("unsupported aggregate value type");
     }
@@ -68,6 +71,9 @@ void *create_aggregate_state(AggregateExpr::Type aggr_type, AttrType attr_type)
     } else if (attr_type == AttrType::FLOATS) {
       state_ptr = malloc(sizeof(AvgState<float>));
       new (state_ptr) AvgState<float>();
+    } else if (attr_type == AttrType::BIGINT) {
+      state_ptr = malloc(sizeof(AvgState<int64_t>));
+      new (state_ptr) AvgState<int64_t>();
     } else {
       LOG_WARN("unsupported aggregate value type");
     }
@@ -85,6 +91,8 @@ RC aggregate_state_update_by_value(void *state, AggregateExpr::Type aggr_type, A
       static_cast<SumState<int> *>(state)->update(val.get_int());
     } else if (attr_type == AttrType::FLOATS) {
       static_cast<SumState<float> *>(state)->update(val.get_float());
+    } else if (attr_type == AttrType::BIGINT) {
+      static_cast<SumState<int64_t> *>(state)->update(val.get_bigint());
     } else {
       LOG_WARN("unsupported aggregate value type");
       return RC::UNIMPLEMENTED;
@@ -96,6 +104,8 @@ RC aggregate_state_update_by_value(void *state, AggregateExpr::Type aggr_type, A
       static_cast<AvgState<int> *>(state)->update(val.get_int());
     } else if (attr_type == AttrType::FLOATS) {
       static_cast<AvgState<float> *>(state)->update(val.get_float());
+    } else if (attr_type == AttrType::BIGINT) {
+      static_cast<AvgState<int64_t> *>(state)->update(val.get_bigint());
     } else {
       LOG_WARN("unsupported aggregate value type");
       return RC::UNIMPLEMENTED;
@@ -123,6 +133,8 @@ RC finialize_aggregate_state(void *state, AggregateExpr::Type aggr_type, AttrTyp
       append_to_column<SumState<int>, int>(state, col);
     } else if (attr_type == AttrType::FLOATS) {
       append_to_column<SumState<float>, float>(state, col);
+    } else if (attr_type == AttrType::BIGINT) {
+      append_to_column<SumState<int64_t>, int64_t>(state, col);
     } else {
       rc = RC::UNIMPLEMENTED;
       LOG_WARN("unsupported aggregate value type");
@@ -134,6 +146,8 @@ RC finialize_aggregate_state(void *state, AggregateExpr::Type aggr_type, AttrTyp
       append_to_column<AvgState<int>, float>(state, col);
     } else if (attr_type == AttrType::FLOATS) {
       append_to_column<AvgState<float>, float>(state, col);
+    } else if (attr_type == AttrType::BIGINT) {
+      append_to_column<AvgState<int64_t>, float>(state, col);
     } else {
       rc = RC::UNIMPLEMENTED;
       LOG_WARN("unsupported aggregate value type");
@@ -161,6 +175,8 @@ RC aggregate_state_update_by_column(void *state, AggregateExpr::Type aggr_type, 
       update_aggregate_state<SumState<int>, int>(state, col);
     } else if (attr_type == AttrType::FLOATS) {
       update_aggregate_state<SumState<float>, float>(state, col);
+    } else if (attr_type == AttrType::BIGINT) {
+      update_aggregate_state<SumState<int64_t>, int64_t>(state, col);
     } else {
       LOG_WARN("unsupported aggregate value type");
       rc = RC::UNIMPLEMENTED;
@@ -172,6 +188,8 @@ RC aggregate_state_update_by_column(void *state, AggregateExpr::Type aggr_type, 
       update_aggregate_state<AvgState<int>, int>(state, col);
     } else if (attr_type == AttrType::FLOATS) {
       update_aggregate_state<AvgState<float>, float>(state, col);
+    } else if (attr_type == AttrType::BIGINT) {
+      update_aggregate_state<AvgState<int64_t>, int64_t>(state, col);
     } else {
       LOG_WARN("unsupported aggregate value type");
       rc = RC::UNIMPLEMENTED;
@@ -185,8 +203,10 @@ RC aggregate_state_update_by_column(void *state, AggregateExpr::Type aggr_type, 
 
 template class SumState<int>;
 template class SumState<float>;
+template class SumState<int64_t>;
 
 template class CountState<int>;
 
 template class AvgState<int>;
 template class AvgState<float>;
+template class AvgState<int64_t>;

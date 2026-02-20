@@ -185,6 +185,71 @@ RC Db::create_table(const char *table_name, span<const AttrInfoSqlNode> attribut
   return RC::SUCCESS;
 }
 
+RC Db::drop_table(const char *table_name)
+{
+  if (table_name == nullptr || common::is_blank(table_name)) {
+    LOG_WARN("invalid table name");
+    return RC::INVALID_ARGUMENT;
+  }
+
+  auto iter = opened_tables_.find(table_name);
+  if (iter == opened_tables_.end()) {
+    LOG_WARN("no such table. table_name=%s", table_name);
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  Table *table = iter->second;
+  const TableMeta &meta = table->table_meta();
+
+  vector<string> index_files;
+  for (int i = 0; i < meta.index_num(); i++) {
+    const IndexMeta *index_meta = meta.index(i);
+    if (index_meta == nullptr) {
+      continue;
+    }
+    index_files.emplace_back(table_index_file(path_.c_str(), table_name, index_meta->name()));
+  }
+
+  string meta_file = table_meta_file(path_.c_str(), table_name);
+  string data_file = table_data_file(path_.c_str(), table_name);
+  string lob_file  = table_lob_file(path_.c_str(), table_name);
+
+  opened_tables_.erase(iter);
+  delete table;
+
+  auto remove_file = [](const string &file) -> RC {
+    error_code ec;
+    filesystem::remove(file, ec);
+    if (ec && ec != std::errc::no_such_file_or_directory) {
+      LOG_WARN("failed to remove file: %s, err=%s", file.c_str(), ec.message().c_str());
+      return RC::IOERR_WRITE;
+    }
+    return RC::SUCCESS;
+  };
+
+  RC rc = RC::SUCCESS;
+  RC tmp_rc = remove_file(meta_file);
+  if (OB_FAIL(tmp_rc)) {
+    rc = tmp_rc;
+  }
+  tmp_rc = remove_file(data_file);
+  if (OB_FAIL(tmp_rc)) {
+    rc = tmp_rc;
+  }
+  tmp_rc = remove_file(lob_file);
+  if (OB_FAIL(tmp_rc)) {
+    rc = tmp_rc;
+  }
+  for (const string &index_file : index_files) {
+    tmp_rc = remove_file(index_file);
+    if (OB_FAIL(tmp_rc)) {
+      rc = tmp_rc;
+    }
+  }
+
+  return rc;
+}
+
 Table *Db::find_table(const char *table_name) const
 {
   unordered_map<string, Table *>::const_iterator iter = opened_tables_.find(table_name);
