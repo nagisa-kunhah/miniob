@@ -44,6 +44,8 @@ public:
   bool        visible() const;
   int         field_id() const;
 
+  void set_field_id(int field_id) { field_id_ = field_id; }
+
 public:
   void set_display_name(string display_name);
 

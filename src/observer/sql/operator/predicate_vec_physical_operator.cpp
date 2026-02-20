@@ -16,8 +16,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "common/log/log.h"
 
-PredicateVecPhysicalOperator::PredicateVecPhysicalOperator(unique_ptr<Expression> expr)
-    : expression_(std::move(expr))
+PredicateVecPhysicalOperator::PredicateVecPhysicalOperator(unique_ptr<Expression> expr) : expression_(std::move(expr))
 {
   ASSERT(expression_ != nullptr, "predicate vec operator should have expression");
   ASSERT(expression_->value_type() == AttrType::BOOLEANS, "predicate's expression should be BOOLEAN type");
@@ -59,8 +58,7 @@ RC PredicateVecPhysicalOperator::next(Chunk &chunk)
         continue;
       }
       for (int j = 0; j < input_chunk_.column_num(); j++) {
-        RC rc2 = filtered_chunk_.column(j).append_value(
-            input_chunk_.column(filtered_chunk_.column_ids(j)).get_value(i));
+        RC rc2 = filtered_chunk_.column(j).append_value(input_chunk_.column(j).get_value(i));
         if (OB_FAIL(rc2)) {
           return rc2;
         }

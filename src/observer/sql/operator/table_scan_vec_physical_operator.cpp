@@ -62,8 +62,7 @@ RC TableScanVecPhysicalOperator::next(Chunk &chunk)
         continue;
       }
       for (int j = 0; j < all_columns_.column_num(); j++) {
-        RC rc2 = filterd_columns_.column(j).append_value(
-            all_columns_.column(filterd_columns_.column_ids(j)).get_value(i));
+        RC rc2 = filterd_columns_.column(j).append_value(all_columns_.column(j).get_value(i));
         if (OB_FAIL(rc2)) {
           return rc2;
         }
